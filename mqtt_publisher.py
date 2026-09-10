@@ -42,7 +42,7 @@ class MqttPublisher:
         self.topic_prefix = topic_prefix
         self._connected = False
 
-        self.client = mqtt.Client(client_id=f"media2mqtt_{_slugify(platform.node())}")
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"media2mqtt_{_slugify(platform.node())}")
         if username:
             self.client.username_pw_set(username, password)
         self.client.on_connect = self._on_connect
