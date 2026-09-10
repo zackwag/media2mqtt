@@ -18,43 +18,44 @@ For example, with `DEVICE_NAME=Zack's Work MacBook`, the entity ID would be `sen
 ## Requirements
 
 - macOS with Apple Music and/or Podcasts
-- Python 3.10+
 - MQTT broker (e.g. [Mosquitto](https://mosquitto.org/))
 - Home Assistant with MQTT integration enabled
 
 ## Install
 
 ```bash
-./install.sh
+brew install zackwag/tap/media2mqtt
 ```
 
-On first run this creates a `.env` file at `~/.local/share/media2mqtt/.env` — fill in at least `MQTT_HOST`, then run `./install.sh` again to finish setup.
-
-To start the service:
+Edit the config with your MQTT broker details:
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.media2mqtt.plist
+nano /opt/homebrew/etc/media2mqtt/config
 ```
 
-To check status:
+Start the service:
 
 ```bash
-launchctl list | grep media2mqtt
+brew services start media2mqtt
 ```
 
-Logs: `~/.local/share/media2mqtt/media2mqtt.log`
-
-## Uninstall
+That's it. The service runs at login and restarts automatically.
 
 ```bash
-./uninstall.sh
+brew services stop media2mqtt     # stop
+brew services restart media2mqtt  # restart
+brew upgrade media2mqtt           # upgrade
 ```
 
-Stops the service, removes the plist, and optionally deletes the install directory.
+Logs: `/opt/homebrew/var/log/media2mqtt.log`
 
-## Environment Variables
+### Manual Install
 
-Configured in `~/.local/share/media2mqtt/.env` (created by `install.sh`):
+If you prefer not to use Homebrew, `install.sh` and `uninstall.sh` are included for manual setup via launchd.
+
+## Configuration
+
+Located at `/opt/homebrew/etc/media2mqtt/config` (Homebrew) or `~/.local/share/media2mqtt/.env` (manual):
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
