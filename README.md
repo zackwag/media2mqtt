@@ -9,7 +9,8 @@ Each enabled app gets a `sensor` entity under a shared device in Home Assistant.
 | Sensor | State | Attributes |
 |---|---|---|
 | `sensor.{device_name}_music` | `playing` / `paused` / `stopped` / `idle` | `track`, `artist`, `album`, `duration`, `is_playing` |
-| `sensor.{device_name}_podcasts` | `playing` / `paused` / `stopped` / `idle` | `episode`, `show`, `is_playing` |
+| `sensor.{device_name}_podcasts` | `playing` / `paused` / `stopped` / `idle` | `episode`, `show`, `duration`, `is_playing` |
+| `sensor.{device_name}_now_playing` | `playing` / `idle` | `source`, `title`, `subtitle`, `duration`, `is_playing` |
 
 For example, with `DEVICE_NAME=Zack's Work MacBook`, the entity ID would be `sensor.zacks_work_macbook_music`.
 
@@ -86,6 +87,118 @@ class MyApp(MediaApp):
 ```
 
 Add it to `AVAILABLE_APPS` at the bottom of the file, then include its key in `ENABLED_APPS`.
+
+## Home Assistant Examples
+
+### Grouped Now Playing sensor
+
+If you run media2mqtt on multiple Macs, a template sensor can aggregate them into a single "Now Playing" entity. Add to `configuration.yaml`:
+
+```yaml
+template:
+  - sensor:
+      - name: "Now Playing"
+        icon: mdi:play-circle
+        state: >
+          {% set sensors = [
+            states('sensor.office_mac_mini_now_playing'),
+            states('sensor.zacks_work_macbook_now_playing'),
+          ] %}
+          {% if 'playing' in sensors %}
+            playing
+          {% else %}
+            idle
+          {% endif %}
+        attributes:
+          source: >
+            {% if is_state('sensor.office_mac_mini_now_playing', 'playing') %}
+              {{ state_attr('sensor.office_mac_mini_now_playing', 'source') }}
+            {% elif is_state('sensor.zacks_work_macbook_now_playing', 'playing') %}
+              {{ state_attr('sensor.zacks_work_macbook_now_playing', 'source') }}
+            {% endif %}
+          device: >
+            {% if is_state('sensor.office_mac_mini_now_playing', 'playing') %}
+              Office Mac Mini
+            {% elif is_state('sensor.zacks_work_macbook_now_playing', 'playing') %}
+              Zack's Work MacBook
+            {% endif %}
+          title: >
+            {% if is_state('sensor.office_mac_mini_now_playing', 'playing') %}
+              {{ state_attr('sensor.office_mac_mini_now_playing', 'title') }}
+            {% elif is_state('sensor.zacks_work_macbook_now_playing', 'playing') %}
+              {{ state_attr('sensor.zacks_work_macbook_now_playing', 'title') }}
+            {% endif %}
+          subtitle: >
+            {% if is_state('sensor.office_mac_mini_now_playing', 'playing') %}
+              {{ state_attr('sensor.office_mac_mini_now_playing', 'subtitle') }}
+            {% elif is_state('sensor.zacks_work_macbook_now_playing', 'playing') %}
+              {{ state_attr('sensor.zacks_work_macbook_now_playing', 'subtitle') }}
+            {% endif %}
+```
+
+The first device listed takes priority when both are playing simultaneously.
+
+### iOS Live Activity
+
+Show what's playing on your iPhone lock screen and Dynamic Island using the HA Companion App:
+
+```yaml
+automation:
+  - alias: "Now Playing - Start/Update Live Activity"
+    mode: restart
+    triggers:
+      - trigger: state
+        entity_id: sensor.now_playing
+        to: playing
+      - trigger: state
+        entity_id: sensor.now_playing
+        attribute: title
+      - trigger: state
+        entity_id: sensor.now_playing
+        attribute: source
+    conditions:
+      - condition: state
+        entity_id: sensor.now_playing
+        state: playing
+    actions:
+      - delay: "00:00:01"
+      - action: notify.mobile_app_<your_iphone>
+        data:
+          title: Now Playing
+          message: >-
+            {% set t = state_attr('sensor.now_playing', 'title') %}
+            {%- set a = state_attr('sensor.now_playing', 'subtitle') -%}
+            {{ t }}{% if a %} — {{ a }}{% endif %}
+          data:
+            tag: now-playing
+            live_update: true
+            notification_icon: >
+              {% if state_attr('sensor.now_playing', 'source') == 'Music' %}
+                mdi:music
+              {% else %}
+                mdi:podcast
+              {% endif %}
+            notification_icon_color: >
+              {% if state_attr('sensor.now_playing', 'source') == 'Music' %}
+                #FC3C44
+              {% else %}
+                #8E4EC6
+              {% endif %}
+
+  - alias: "Now Playing - End Live Activity"
+    triggers:
+      - trigger: state
+        entity_id: sensor.now_playing
+        from: playing
+    actions:
+      - action: notify.mobile_app_<your_iphone>
+        data:
+          message: clear_notification
+          data:
+            tag: now-playing
+```
+
+Replace `<your_iphone>` with your device name from **Settings > Companion App > Server & devices** in HA.
 
 ## Notes
 
