@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONFIG_FILE="${MEDIA2MQTT_CONFIG:-__HOMEBREW_ETC__/media2mqtt/config}"
+LIBEXEC="__HOMEBREW_LIBEXEC__"
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "ERROR: Config file not found: $CONFIG_FILE"
+    echo "Copy the default config and edit it:"
+    echo "    cp ${CONFIG_FILE}.default $CONFIG_FILE"
+    exit 1
+fi
+
+while IFS='=' read -r key value; do
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    [ -n "$value" ] && export "$key=$value"
+done < "$CONFIG_FILE"
+
+exec "$LIBEXEC/venv/bin/python" "$LIBEXEC/main.py"
