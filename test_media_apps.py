@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from unittest.mock import patch
 
@@ -96,8 +97,19 @@ class TestMusicApp:
         assert state.attributes["track"] == "Don't Stop Me Now"
 
 
+def _nowplaying_json(bundle_id, title, artist, duration, playback_rate):
+    return json.dumps({
+        "kMRMediaRemoteNowPlayingInfoClientBundleIdentifier": bundle_id,
+        "kMRMediaRemoteNowPlayingInfoTitle": title,
+        "kMRMediaRemoteNowPlayingInfoArtist": artist,
+        "kMRMediaRemoteNowPlayingInfoDuration": duration,
+        "kMRMediaRemoteNowPlayingInfoPlaybackRate": playback_rate,
+    })
+
+
 class TestPodcastsApp:
-    def setup_method(self):
+    @patch("media_apps.shutil.which", return_value="/usr/local/bin/nowplaying-cli")
+    def setup_method(self, method, mock_which=None):
         self.app = PodcastsApp()
 
     @patch("media_apps.subprocess.run")
@@ -110,39 +122,53 @@ class TestPodcastsApp:
     def test_playing(self, mock_run):
         mock_run.side_effect = [
             _osascript_result("true"),
-            _osascript_result(f"playing{_SEP}Episode 42{_SEP}My Podcast"),
+            _osascript_result(_nowplaying_json("com.apple.podcasts", "Episode 42", "My Podcast", 3600, 1)),
         ]
         state = self.app.poll()
         assert state.player_state == "playing"
         assert state.is_playing is True
-        assert state.attributes == {"episode": "Episode 42", "show": "My Podcast"}
+        assert state.attributes == {"episode": "Episode 42", "show": "My Podcast", "duration": "3600"}
 
     @patch("media_apps.subprocess.run")
     def test_paused(self, mock_run):
         mock_run.side_effect = [
             _osascript_result("true"),
-            _osascript_result(f"paused{_SEP}Episode 1{_SEP}Some Show"),
+            _osascript_result(_nowplaying_json("com.apple.podcasts", "Episode 1", "Some Show", 1800, 0)),
         ]
         state = self.app.poll()
         assert state.player_state == "paused"
         assert state.is_playing is False
 
     @patch("media_apps.subprocess.run")
-    def test_stopped(self, mock_run):
+    def test_different_app_playing(self, mock_run):
         mock_run.side_effect = [
             _osascript_result("true"),
-            _osascript_result("stopped"),
+            _osascript_result(_nowplaying_json("com.apple.Music", "Song", "Artist", 200, 1)),
         ]
         state = self.app.poll()
-        assert state.player_state == "stopped"
-        assert state.is_playing is False
-        assert state.attributes == {}
+        assert state == MediaState()
 
     @patch("media_apps.subprocess.run")
-    def test_applescript_error(self, mock_run):
+    def test_nowplaying_error(self, mock_run):
         mock_run.side_effect = [
             _osascript_result("true"),
             _osascript_error(),
         ]
         state = self.app.poll()
         assert state == MediaState()
+
+    @patch("media_apps.subprocess.run")
+    def test_nowplaying_timeout(self, mock_run):
+        mock_run.side_effect = [
+            _osascript_result("true"),
+            subprocess.TimeoutExpired(cmd="nowplaying-cli", timeout=5),
+        ]
+        state = self.app.poll()
+        assert state == MediaState()
+
+    @patch("os.access", return_value=False)
+    @patch("os.path.isfile", return_value=False)
+    @patch("media_apps.shutil.which", return_value=None)
+    def test_missing_nowplaying_cli(self, mock_which, mock_isfile, mock_access):
+        with pytest.raises(RuntimeError):
+            PodcastsApp()

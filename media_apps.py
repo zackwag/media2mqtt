@@ -1,7 +1,9 @@
-"""Media app adapters that poll macOS apps via AppleScript."""
+"""Media app adapters that poll macOS apps via AppleScript or nowplaying-cli."""
 from __future__ import annotations
 
+import json
 import logging
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 
@@ -88,37 +90,61 @@ class MusicApp(MediaApp):
 
 
 class PodcastsApp(MediaApp):
+    """Uses nowplaying-cli since Podcasts.app has no AppleScript playback API."""
+
     app_name = "Podcasts"
     bundle_id = "com.apple.podcasts"
+
+    def __init__(self):
+        import os
+        self._nowplaying_bin = shutil.which("nowplaying-cli")
+        if not self._nowplaying_bin:
+            for path in ["/opt/homebrew/bin/nowplaying-cli", "/usr/local/bin/nowplaying-cli"]:
+                if os.path.isfile(path) and os.access(path, os.X_OK):
+                    self._nowplaying_bin = path
+                    break
+        if not self._nowplaying_bin:
+            raise RuntimeError("nowplaying-cli is required for Podcasts support: brew install nowplaying-cli")
 
     def poll(self) -> MediaState:
         if not self._app_is_running():
             return MediaState()
 
-        script = f'''
-            tell application "Podcasts"
-                set pState to player state as string
-                if player state is not stopped then
-                    set eName to name of current episode
-                    set sName to name of show of current episode
-                    return pState & "{_SEPARATOR}" & eName & "{_SEPARATOR}" & sName
-                else
-                    return pState
-                end if
-            end tell
-        '''
-        raw = self._run_applescript(script)
-        if not raw:
+        try:
+            result = subprocess.run(
+                [self._nowplaying_bin, "get-raw"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode != 0 or not result.stdout.strip():
+                return MediaState()
+        except subprocess.TimeoutExpired:
+            _LOGGER.warning("nowplaying-cli timed out")
             return MediaState()
 
-        parts = raw.split(_SEPARATOR)
-        player_state = parts[0].strip().lower()
-        is_playing = player_state == "playing"
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return MediaState()
+
+        bundle = data.get("kMRMediaRemoteNowPlayingInfoClientBundleIdentifier", "")
+        if bundle != self.bundle_id:
+            return MediaState()
+
+        playback_rate = data.get("kMRMediaRemoteNowPlayingInfoPlaybackRate", 0)
+        is_playing = playback_rate == 1
+        player_state = "playing" if is_playing else "paused"
+
+        title = data.get("kMRMediaRemoteNowPlayingInfoTitle", "")
+        show = data.get("kMRMediaRemoteNowPlayingInfoArtist", "")
+        duration = data.get("kMRMediaRemoteNowPlayingInfoDuration", "")
 
         attrs: dict[str, str] = {}
-        if len(parts) >= 3:
-            attrs["episode"] = parts[1].strip()
-            attrs["show"] = parts[2].strip()
+        if title:
+            attrs["episode"] = title
+        if show:
+            attrs["show"] = show
+        if duration:
+            attrs["duration"] = str(duration)
 
         return MediaState(player_state=player_state, is_playing=is_playing, attributes=attrs)
 
