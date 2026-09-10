@@ -8,9 +8,9 @@ Each enabled app gets a `sensor` entity under a shared device in Home Assistant.
 
 | Sensor | State | Attributes |
 |---|---|---|
-| `sensor.{device_name}_music` | `playing` / `paused` / `stopped` / `idle` | `track`, `artist`, `album`, `duration`, `is_playing` |
-| `sensor.{device_name}_podcasts` | `playing` / `paused` / `stopped` / `idle` | `episode`, `show`, `duration`, `is_playing` |
-| `sensor.{device_name}_now_playing` | `playing` / `idle` | `source`, `title`, `subtitle`, `duration`, `is_playing` |
+| `sensor.{device_name}_music` | `playing` / `paused` / `stopped` / `idle` | `track`, `artist`, `album`, `duration`, `elapsed`, `is_playing` |
+| `sensor.{device_name}_podcasts` | `playing` / `paused` / `stopped` / `idle` | `episode`, `show`, `duration`, `elapsed`, `is_playing` |
+| `sensor.{device_name}_now_playing` | `playing` / `idle` | `source`, `title`, `subtitle`, `duration`, `elapsed`, `is_playing` |
 
 For example, with `DEVICE_NAME=Zack's Work MacBook`, the entity ID would be `sensor.zacks_work_macbook_music`.
 
@@ -184,6 +184,10 @@ automation:
               {% else %}
                 #8E4EC6
               {% endif %}
+            progress: >
+              {{ state_attr('sensor.now_playing', 'elapsed') | float(0) | round(0) | int }}
+            progress_max: >
+              {{ state_attr('sensor.now_playing', 'duration') | float(0) | round(0) | int }}
 
   - alias: "Now Playing - End Live Activity"
     triggers:

@@ -93,6 +93,8 @@ def main() -> None:
             }
             if "duration" in state.attributes:
                 attrs["duration"] = state.attributes["duration"]
+            if "elapsed" in state.attributes:
+                attrs["elapsed"] = state.attributes["elapsed"]
             publisher.publish_state(now_playing_id, "playing", True, attrs)
         else:
             publisher.publish_state(now_playing_id, "idle", False, {})

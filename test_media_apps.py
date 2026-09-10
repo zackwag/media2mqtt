@@ -36,7 +36,7 @@ class TestMusicApp:
     def test_playing(self, mock_run):
         mock_run.side_effect = [
             _osascript_result("true"),
-            _osascript_result(f"playing{_SEP}Bohemian Rhapsody{_SEP}Queen{_SEP}A Night at the Opera{_SEP}354"),
+            _osascript_result(f"playing{_SEP}Bohemian Rhapsody{_SEP}Queen{_SEP}A Night at the Opera{_SEP}354{_SEP}132.5"),
         ]
         state = self.app.poll()
         assert state.player_state == "playing"
@@ -46,13 +46,14 @@ class TestMusicApp:
             "artist": "Queen",
             "album": "A Night at the Opera",
             "duration": "354",
+            "elapsed": "132.5",
         }
 
     @patch("media_apps.subprocess.run")
     def test_paused(self, mock_run):
         mock_run.side_effect = [
             _osascript_result("true"),
-            _osascript_result(f"paused{_SEP}Track{_SEP}Artist{_SEP}Album{_SEP}200"),
+            _osascript_result(f"paused{_SEP}Track{_SEP}Artist{_SEP}Album{_SEP}200{_SEP}45.0"),
         ]
         state = self.app.poll()
         assert state.player_state == "paused"
@@ -91,19 +92,20 @@ class TestMusicApp:
     def test_metadata_with_special_characters(self, mock_run):
         mock_run.side_effect = [
             _osascript_result("true"),
-            _osascript_result(f"playing{_SEP}Don't Stop Me Now{_SEP}Queen{_SEP}Jazz{_SEP}209"),
+            _osascript_result(f"playing{_SEP}Don't Stop Me Now{_SEP}Queen{_SEP}Jazz{_SEP}209{_SEP}100.0"),
         ]
         state = self.app.poll()
         assert state.attributes["track"] == "Don't Stop Me Now"
 
 
-def _nowplaying_json(bundle_id, title, artist, duration, playback_rate):
+def _nowplaying_json(bundle_id, title, artist, duration, playback_rate, elapsed=0):
     return json.dumps({
         "kMRMediaRemoteNowPlayingInfoClientBundleIdentifier": bundle_id,
         "kMRMediaRemoteNowPlayingInfoTitle": title,
         "kMRMediaRemoteNowPlayingInfoArtist": artist,
         "kMRMediaRemoteNowPlayingInfoDuration": duration,
         "kMRMediaRemoteNowPlayingInfoPlaybackRate": playback_rate,
+        "kMRMediaRemoteNowPlayingInfoElapsedTime": elapsed,
     })
 
 
@@ -122,18 +124,18 @@ class TestPodcastsApp:
     def test_playing(self, mock_run):
         mock_run.side_effect = [
             _osascript_result("true"),
-            _osascript_result(_nowplaying_json("com.apple.podcasts", "Episode 42", "My Podcast", 3600, 1)),
+            _osascript_result(_nowplaying_json("com.apple.podcasts", "Episode 42", "My Podcast", 3600, 1, 1200)),
         ]
         state = self.app.poll()
         assert state.player_state == "playing"
         assert state.is_playing is True
-        assert state.attributes == {"episode": "Episode 42", "show": "My Podcast", "duration": "3600"}
+        assert state.attributes == {"episode": "Episode 42", "show": "My Podcast", "duration": "3600", "elapsed": "1200"}
 
     @patch("media_apps.subprocess.run")
     def test_paused(self, mock_run):
         mock_run.side_effect = [
             _osascript_result("true"),
-            _osascript_result(_nowplaying_json("com.apple.podcasts", "Episode 1", "Some Show", 1800, 0)),
+            _osascript_result(_nowplaying_json("com.apple.podcasts", "Episode 1", "Some Show", 1800, 0, 500)),
         ]
         state = self.app.poll()
         assert state.player_state == "paused"
@@ -143,7 +145,7 @@ class TestPodcastsApp:
     def test_different_app_playing(self, mock_run):
         mock_run.side_effect = [
             _osascript_result("true"),
-            _osascript_result(_nowplaying_json("com.apple.Music", "Song", "Artist", 200, 1)),
+            _osascript_result(_nowplaying_json("com.apple.Music", "Song", "Artist", 200, 1, 50)),
         ]
         state = self.app.poll()
         assert state == MediaState()

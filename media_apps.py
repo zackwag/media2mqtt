@@ -65,7 +65,8 @@ class MusicApp(MediaApp):
                     set tArtist to artist of current track
                     set tAlbum to album of current track
                     set tDuration to duration of current track
-                    return pState & "{_SEPARATOR}" & tName & "{_SEPARATOR}" & tArtist & "{_SEPARATOR}" & tAlbum & "{_SEPARATOR}" & tDuration
+                    set tPosition to player position
+                    return pState & "{_SEPARATOR}" & tName & "{_SEPARATOR}" & tArtist & "{_SEPARATOR}" & tAlbum & "{_SEPARATOR}" & tDuration & "{_SEPARATOR}" & tPosition
                 else
                     return pState
                 end if
@@ -80,11 +81,12 @@ class MusicApp(MediaApp):
         is_playing = player_state == "playing"
 
         attrs: dict[str, str] = {}
-        if len(parts) >= 5:
+        if len(parts) >= 6:
             attrs["track"] = parts[1].strip()
             attrs["artist"] = parts[2].strip()
             attrs["album"] = parts[3].strip()
             attrs["duration"] = parts[4].strip()
+            attrs["elapsed"] = parts[5].strip()
 
         return MediaState(player_state=player_state, is_playing=is_playing, attributes=attrs)
 
@@ -137,6 +139,7 @@ class PodcastsApp(MediaApp):
         title = data.get("kMRMediaRemoteNowPlayingInfoTitle", "")
         show = data.get("kMRMediaRemoteNowPlayingInfoArtist", "")
         duration = data.get("kMRMediaRemoteNowPlayingInfoDuration", "")
+        elapsed = data.get("kMRMediaRemoteNowPlayingInfoElapsedTime", "")
 
         attrs: dict[str, str] = {}
         if title:
@@ -145,6 +148,8 @@ class PodcastsApp(MediaApp):
             attrs["show"] = show
         if duration:
             attrs["duration"] = str(duration)
+        if elapsed:
+            attrs["elapsed"] = str(elapsed)
 
         return MediaState(player_state=player_state, is_playing=is_playing, attributes=attrs)
 
