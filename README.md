@@ -4,12 +4,14 @@ Publishes macOS media app playback state to Home Assistant via MQTT Discovery â€
 
 ## Sensors
 
-Each enabled app gets a `sensor` entity under a shared device in Home Assistant:
+Each enabled app gets a `sensor` entity under a shared device in Home Assistant. Entity IDs are derived from `DEVICE_NAME`:
 
 | Sensor | State | Attributes |
 |---|---|---|
-| `sensor.media2mqtt_music` | `playing` / `paused` / `stopped` / `idle` | `track`, `artist`, `album`, `duration`, `is_playing` |
-| `sensor.media2mqtt_podcasts` | `playing` / `paused` / `stopped` / `idle` | `episode`, `show`, `is_playing` |
+| `sensor.{device_name}_music` | `playing` / `paused` / `stopped` / `idle` | `track`, `artist`, `album`, `duration`, `is_playing` |
+| `sensor.{device_name}_podcasts` | `playing` / `paused` / `stopped` / `idle` | `episode`, `show`, `is_playing` |
+
+For example, with `DEVICE_NAME=Zack's Work MacBook`, the entity ID would be `sensor.zacks_work_macbook_music`.
 
 `idle` means the app isn't running. `is_playing` is a boolean for easy automations.
 

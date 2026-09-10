@@ -55,20 +55,20 @@ class MqttPublisher:
             self.client.loop_start()
 
     def publish_discovery(self, app_key: str, app_name: str, device_name: str) -> str:
-        object_id = f"media2mqtt_{app_key}"
+        device_slug = _slugify(device_name)
+        object_id = f"{device_slug}_{app_key}"
         state_topic = f"{self.topic_prefix}/{object_id}/state"
         attrs_topic = f"{self.topic_prefix}/{object_id}/attributes"
         config_topic = f"{self.discovery_prefix}/sensor/{object_id}/config"
         payload = {
-            "name": app_name,
-            "has_entity_name": True,
+            "name": f"{device_name} {app_name}",
             "object_id": object_id,
             "unique_id": object_id,
             "state_topic": state_topic,
             "json_attributes_topic": attrs_topic,
             "icon": "mdi:music" if app_key == "music" else "mdi:podcast",
             "device": {
-                "identifiers": [f"media2mqtt_{_slugify(device_name)}"],
+                "identifiers": [f"media2mqtt_{device_slug}"],
                 "name": device_name,
                 "manufacturer": "Apple",
                 "model": "macOS",

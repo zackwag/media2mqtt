@@ -38,8 +38,12 @@ EOF
     exit 0
 fi
 
-source "$ENV_FILE"
-if [ -z "${MQTT_HOST:-}" ]; then
+MQTT_HOST=""
+while IFS='=' read -r key value; do
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    [ "$key" = "MQTT_HOST" ] && MQTT_HOST="$value"
+done < "$ENV_FILE"
+if [ -z "$MQTT_HOST" ]; then
     echo "ERROR: MQTT_HOST is not set in $ENV_FILE"
     exit 1
 fi
