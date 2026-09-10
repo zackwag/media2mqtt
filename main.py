@@ -20,8 +20,10 @@ import platform
 import sys
 import time
 
-from media_apps import AVAILABLE_APPS
+from media_apps import AVAILABLE_APPS, MediaState
 from mqtt_publisher import MqttPublisher
+
+_TITLE_KEYS = {"music": "track", "podcasts": "episode"}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 _LOGGER = logging.getLogger("media2mqtt")
@@ -66,9 +68,11 @@ def main() -> None:
     object_ids: dict[str, str] = {}
     for key, app in apps:
         object_ids[key] = publisher.publish_discovery(key, app.app_name, device_name)
+    now_playing_id = publisher.publish_now_playing_discovery(device_name)
 
     _LOGGER.info("Polling %s every %ss", ", ".join(k for k, _ in apps), poll_interval)
     while True:
+        states: dict[str, tuple[str, MediaState]] = {}
         for key, app in apps:
             try:
                 state = app.poll()
@@ -76,6 +80,23 @@ def main() -> None:
                 _LOGGER.exception("Error polling %s", key)
                 continue
             publisher.publish_state(object_ids[key], state.player_state, state.is_playing, state.attributes)
+            states[key] = (app.app_name, state)
+
+        active = next(((k, name, s) for k, (name, s) in states.items() if s.is_playing), None)
+        if active:
+            key, source, state = active
+            title_key = _TITLE_KEYS.get(key, "track")
+            attrs = {
+                "source": source,
+                "title": state.attributes.get(title_key, ""),
+                "subtitle": state.attributes.get("artist", state.attributes.get("show", "")),
+            }
+            if "duration" in state.attributes:
+                attrs["duration"] = state.attributes["duration"]
+            publisher.publish_state(now_playing_id, "playing", True, attrs)
+        else:
+            publisher.publish_state(now_playing_id, "idle", False, {})
+
         time.sleep(poll_interval)
 
 

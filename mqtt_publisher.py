@@ -4,10 +4,25 @@ from __future__ import annotations
 import json
 import logging
 import socket
+import subprocess
 
 import paho.mqtt.client as mqtt
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _get_mac_model() -> str:
+    try:
+        result = subprocess.run(
+            ["system_profiler", "SPHardwareDataType"],
+            capture_output=True, text=True, timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            if "Model Name" in line:
+                return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+    return "Mac"
 
 
 class MqttPublisher:
@@ -32,6 +47,7 @@ class MqttPublisher:
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.reconnect_delay_set(min_delay=1, max_delay=60)
+        self._mac_model = _get_mac_model()
         self._try_connect()
 
     def _on_connect(self, client, userdata, flags, reason_code, properties=None):
@@ -54,28 +70,41 @@ class MqttPublisher:
             _LOGGER.warning("Cannot reach MQTT broker at %s:%s (%s), will retry", self.host, self.port, exc)
             self.client.loop_start()
 
-    def publish_discovery(self, app_key: str, app_name: str, device_name: str) -> str:
+    def _device_block(self, device_name: str) -> dict:
         device_slug = _slugify(device_name)
-        object_id = f"{device_slug}_{app_key}"
+        return {
+            "identifiers": [f"media2mqtt_{device_slug}"],
+            "name": device_name,
+            "manufacturer": "Apple",
+            "model": self._mac_model,
+        }
+
+    def _publish_sensor_discovery(self, object_id: str, name: str, icon: str, device_name: str) -> str:
         state_topic = f"{self.topic_prefix}/{object_id}/state"
         attrs_topic = f"{self.topic_prefix}/{object_id}/attributes"
         config_topic = f"{self.discovery_prefix}/sensor/{object_id}/config"
         payload = {
-            "name": f"{device_name} {app_name}",
+            "name": name,
             "object_id": object_id,
             "unique_id": object_id,
             "state_topic": state_topic,
             "json_attributes_topic": attrs_topic,
-            "icon": "mdi:music" if app_key == "music" else "mdi:podcast",
-            "device": {
-                "identifiers": [f"media2mqtt_{device_slug}"],
-                "name": device_name,
-                "manufacturer": "Apple",
-                "model": "macOS",
-            },
+            "icon": icon,
+            "device": self._device_block(device_name),
         }
         self.client.publish(config_topic, json.dumps(payload), qos=1, retain=True)
         return object_id
+
+    def publish_discovery(self, app_key: str, app_name: str, device_name: str) -> str:
+        device_slug = _slugify(device_name)
+        object_id = f"{device_slug}_{app_key}"
+        icon = "mdi:music" if app_key == "music" else "mdi:podcast"
+        return self._publish_sensor_discovery(object_id, f"{device_name} {app_name}", icon, device_name)
+
+    def publish_now_playing_discovery(self, device_name: str) -> str:
+        device_slug = _slugify(device_name)
+        object_id = f"{device_slug}_now_playing"
+        return self._publish_sensor_discovery(object_id, f"{device_name} Now Playing", "mdi:play-circle", device_name)
 
     def publish_state(self, object_id: str, player_state: str, is_playing: bool, attributes: dict) -> None:
         state_topic = f"{self.topic_prefix}/{object_id}/state"
