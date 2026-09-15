@@ -143,66 +143,59 @@ The first device listed takes priority when both are playing simultaneously.
 Show what's playing on your iPhone lock screen and Dynamic Island using the HA Companion App:
 
 ```yaml
-automation:
-  - alias: "Now Playing - Start/Update Live Activity"
-    mode: restart
-    triggers:
-      - trigger: state
-        entity_id: sensor.now_playing
-        to: playing
-      - trigger: state
-        entity_id: sensor.now_playing
-        attribute: title
-      - trigger: state
-        entity_id: sensor.now_playing
-        attribute: source
-    conditions:
-      - condition: state
-        entity_id: sensor.now_playing
-        state: playing
-    actions:
-      - delay: "00:00:01"
-      - action: notify.mobile_app_<your_iphone>
-        data:
-          title: Now Playing
-          message: >-
-            {% set t = state_attr('sensor.now_playing', 'title') %}
-            {%- set a = state_attr('sensor.now_playing', 'subtitle') -%}
-            {{ t }}{% if a %} — {{ a }}{% endif %}
-          data:
-            tag: now-playing
-            live_update: true
-            notification_icon: >
-              {% if state_attr('sensor.now_playing', 'source') == 'Music' %}
-                mdi:music
-              {% else %}
-                mdi:podcast
-              {% endif %}
-            notification_icon_color: >
-              {% if state_attr('sensor.now_playing', 'source') == 'Music' %}
-                #FC3C44
-              {% else %}
-                #8E4EC6
-              {% endif %}
-            progress: >
-              {{ state_attr('sensor.now_playing', 'elapsed') | float(0) | round(0) | int }}
-            progress_max: >
-              {{ state_attr('sensor.now_playing', 'duration') | float(0) | round(0) | int }}
-
-  - alias: "Now Playing - End Live Activity"
-    triggers:
-      - trigger: state
-        entity_id: sensor.now_playing
-        from: playing
-    actions:
-      - action: notify.mobile_app_<your_iphone>
-        data:
-          message: clear_notification
-          data:
-            tag: now-playing
+alias: Now Playing - Start/Update Live Activity
+triggers:
+  - trigger: state
+    entity_id: sensor.now_playing
+    to: playing
+  - trigger: state
+    entity_id: sensor.now_playing
+    attribute: title
+  - trigger: state
+    entity_id: sensor.now_playing
+    attribute: source
+conditions:
+  - condition: state
+    entity_id: sensor.now_playing
+    state: playing
+actions:
+  - delay: '00:00:01'
+  - action: notify.mobile_app_<your_iphone>
+    data:
+      title: "{{ state_attr('sensor.now_playing', 'title') }}{% if state_attr('sensor.now_playing', 'subtitle') %} — {{ state_attr('sensor.now_playing', 'subtitle') }}{% endif %}"
+      message: Now Playing
+      data:
+        tag: now-playing
+        live_update: true
+        chronometer: true
+        when: "{{ ((state_attr('sensor.now_playing', 'duration') | float(0)) - (state_attr('sensor.now_playing', 'elapsed') | float(0))) | int }}"
+        when_relative: true
+        notification_icon: "{% if state_attr('sensor.now_playing', 'source') == 'Music' %}mdi:music-note{% else %}mdi:podcast{% endif %}"
+        notification_icon_color: "{% if state_attr('sensor.now_playing', 'source') == 'Music' %}#FC3C44{% else %}#8E4EC6{% endif %}"
+mode: restart
 ```
 
 Replace `<your_iphone>` with your device name from **Settings > Companion App > Server & devices** in HA.
+
+This renders similar to
+
+<img width="1311" height="603" alt="Image" src="https://github.com/user-attachments/assets/37cb2eaa-ff33-415b-a399-c0d551f90794" />
+
+Additionally, you probably want an activity to clear on pause/stop:
+
+```yaml
+alias: Now Playing - End Live Activity
+triggers:
+  - trigger: state
+    entity_id: sensor.now_playing
+    from: playing
+actions:
+  - action: notify.mobile_app_zack_wagner_s_iphone
+    data:
+      message: clear_notification
+      data:
+        tag: now-playing
+```
 
 ## Notes
 
