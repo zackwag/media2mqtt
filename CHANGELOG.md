@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/zackwag/media2mqtt/compare/v1.4.0...v1.4.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* **ci:** use RELEASE_PLEASE_TOKEN so releases trigger downstream workflows ([#9](https://github.com/zackwag/media2mqtt/issues/9)) ([1f655f4](https://github.com/zackwag/media2mqtt/commit/1f655f4d25e7044d645b398576a018717a2ca4d5))
+
 ## [1.4.0](https://github.com/zackwag/media2mqtt/compare/v1.3.0...v1.4.0) (2026-09-17)
 
 
