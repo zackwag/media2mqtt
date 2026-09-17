@@ -1,0 +1,13 @@
+# Changelog
+
+## [1.4.0](https://github.com/zackwag/media2mqtt/compare/v1.3.0...v1.4.0) (2026-09-17)
+
+
+### Features
+
+* **ci:** adopt release-please ([#7](https://github.com/zackwag/media2mqtt/issues/7)) ([a45f788](https://github.com/zackwag/media2mqtt/commit/a45f788360f6801e6e325d557632218adb7a687a))
+
+
+### Bug Fixes
+
+* **ci:** route homebrew-tap update through a PR instead of a direct push ([#6](https://github.com/zackwag/media2mqtt/issues/6)) ([3a47d46](https://github.com/zackwag/media2mqtt/commit/3a47d4679041052c8bf606a97d5b3147aadf1bea))
