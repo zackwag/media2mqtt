@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/zackwag/media2mqtt/compare/v1.4.1...v1.4.2) (2026-09-17)
+
+
+### Bug Fixes
+
+* **ci:** wait for checks to actually register before polling for completion ([#11](https://github.com/zackwag/media2mqtt/issues/11)) ([f7dd6e6](https://github.com/zackwag/media2mqtt/commit/f7dd6e66e7679518d18777385c42781366869029))
+
 ## [1.4.1](https://github.com/zackwag/media2mqtt/compare/v1.4.0...v1.4.1) (2026-09-17)
 
 
