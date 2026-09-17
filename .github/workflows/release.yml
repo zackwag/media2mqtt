@@ -44,11 +44,36 @@ jobs:
           sed -i 's/^  version ".*"/  version "${{ steps.version.outputs.version }}"/' Formula/media2mqtt.rb
           sed -i '0,/^  sha256 ".*"/{s/^  sha256 ".*"/  sha256 "${{ steps.sha.outputs.sha256 }}"/}' Formula/media2mqtt.rb
 
-      - name: Commit and push
+      - name: Open PR against homebrew-tap
+        env:
+          GH_TOKEN: ${{ secrets.TAP_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/media2mqtt.rb
           git diff --cached --quiet && exit 0
-          git commit -m "Update media2mqtt to ${{ steps.version.outputs.version }}"
-          git push
+
+          VERSION="${{ steps.version.outputs.version }}"
+          BRANCH="update-media2mqtt-${VERSION}"
+          git checkout -b "$BRANCH"
+          git commit -m "chore(media2mqtt): update to ${VERSION}"
+          git push origin "$BRANCH"
+
+          gh pr create --repo zackwag/homebrew-tap --base main --head "$BRANCH" \
+            --title "chore(media2mqtt): update to ${VERSION}" \
+            --body "Automated update from a media2mqtt release."
+
+          pr_number=$(gh pr list --repo zackwag/homebrew-tap --head "$BRANCH" --json number -q '.[0].number')
+          for i in $(seq 1 40); do
+            pending=$(gh pr view "$pr_number" --repo zackwag/homebrew-tap --json statusCheckRollup -q '[.statusCheckRollup[] | select(.status!="COMPLETED")] | length')
+            if [ "$pending" = "0" ]; then break; fi
+            sleep 15
+          done
+
+          bad=$(gh pr view "$pr_number" --repo zackwag/homebrew-tap --json statusCheckRollup -q '[.statusCheckRollup[] | select((.conclusion // "") | IN("SUCCESS","NEUTRAL","SKIPPED") | not)] | length')
+          if [ "$bad" != "0" ]; then
+            echo "::error::$bad check(s) did not succeed; leaving PR #$pr_number open for review."
+            exit 1
+          fi
+
+          gh pr merge "$pr_number" --repo zackwag/homebrew-tap --squash --delete-branch
