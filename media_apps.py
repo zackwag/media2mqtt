@@ -1,4 +1,5 @@
 """Media app adapters that poll macOS apps via AppleScript or nowplaying-cli."""
+
 from __future__ import annotations
 
 import json
@@ -31,7 +32,10 @@ class MediaApp:
     def _app_is_running(self) -> bool:
         result = subprocess.run(
             ["osascript", "-e", f'application "{self.app_name}" is running'],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
         )
         return result.stdout.strip().lower() == "true"
 
@@ -39,7 +43,10 @@ class MediaApp:
         try:
             result = subprocess.run(
                 ["osascript", "-e", script],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
             )
             if result.returncode != 0:
                 return None
@@ -99,6 +106,7 @@ class PodcastsApp(MediaApp):
 
     def __init__(self):
         import os
+
         self._nowplaying_bin = shutil.which("nowplaying-cli")
         if not self._nowplaying_bin:
             for path in ["/opt/homebrew/bin/nowplaying-cli", "/usr/local/bin/nowplaying-cli"]:
@@ -106,7 +114,9 @@ class PodcastsApp(MediaApp):
                     self._nowplaying_bin = path
                     break
         if not self._nowplaying_bin:
-            raise RuntimeError("nowplaying-cli is required for Podcasts support: brew install nowplaying-cli")
+            raise RuntimeError(
+                "nowplaying-cli is required for Podcasts support: brew install nowplaying-cli"
+            )
 
     def poll(self) -> MediaState:
         if not self._app_is_running():
@@ -115,7 +125,10 @@ class PodcastsApp(MediaApp):
         try:
             result = subprocess.run(
                 [self._nowplaying_bin, "get-raw"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
             )
             if result.returncode != 0 or not result.stdout.strip():
                 return MediaState()

@@ -1,10 +1,10 @@
 """Resilient MQTT publisher with Home Assistant discovery."""
+
 from __future__ import annotations
 
 import json
 import logging
 import platform
-import socket
 import subprocess
 
 import paho.mqtt.client as mqtt
@@ -16,13 +16,16 @@ def _get_mac_model() -> str:
     try:
         result = subprocess.run(
             ["system_profiler", "SPHardwareDataType"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
         )
         for line in result.stdout.splitlines():
             if "Model Name" in line:
                 return line.split(":", 1)[1].strip()
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 - cosmetic device name, always fall back to "Mac"
+        _LOGGER.debug("Could not determine Mac model: %s", exc)
     return "Mac"
 
 
@@ -42,7 +45,9 @@ class MqttPublisher:
         self.topic_prefix = topic_prefix
         self._connected = False
 
-        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"media2mqtt_{_slugify(platform.node())}")
+        self.client = mqtt.Client(
+            mqtt.CallbackAPIVersion.VERSION2, client_id=f"media2mqtt_{_slugify(platform.node())}"
+        )
         if username:
             self.client.username_pw_set(username, password)
         self.client.on_connect = self._on_connect
@@ -67,8 +72,10 @@ class MqttPublisher:
         try:
             self.client.connect(self.host, self.port, keepalive=60)
             self.client.loop_start()
-        except (OSError, socket.error) as exc:
-            _LOGGER.warning("Cannot reach MQTT broker at %s:%s (%s), will retry", self.host, self.port, exc)
+        except OSError as exc:
+            _LOGGER.warning(
+                "Cannot reach MQTT broker at %s:%s (%s), will retry", self.host, self.port, exc
+            )
             self.client.loop_start()
 
     def _device_block(self, device_name: str) -> dict:
@@ -80,7 +87,9 @@ class MqttPublisher:
             "model": self._mac_model,
         }
 
-    def _publish_sensor_discovery(self, object_id: str, name: str, icon: str, device_name: str) -> str:
+    def _publish_sensor_discovery(
+        self, object_id: str, name: str, icon: str, device_name: str
+    ) -> str:
         state_topic = f"{self.topic_prefix}/{object_id}/state"
         attrs_topic = f"{self.topic_prefix}/{object_id}/attributes"
         config_topic = f"{self.discovery_prefix}/sensor/{object_id}/config"
@@ -100,18 +109,26 @@ class MqttPublisher:
         device_slug = _slugify(device_name)
         object_id = f"{device_slug}_{app_key}"
         icon = "mdi:music" if app_key == "music" else "mdi:podcast"
-        return self._publish_sensor_discovery(object_id, f"{device_name} {app_name}", icon, device_name)
+        return self._publish_sensor_discovery(
+            object_id, f"{device_name} {app_name}", icon, device_name
+        )
 
     def publish_now_playing_discovery(self, device_name: str) -> str:
         device_slug = _slugify(device_name)
         object_id = f"{device_slug}_now_playing"
-        return self._publish_sensor_discovery(object_id, f"{device_name} Now Playing", "mdi:play-circle", device_name)
+        return self._publish_sensor_discovery(
+            object_id, f"{device_name} Now Playing", "mdi:play-circle", device_name
+        )
 
-    def publish_state(self, object_id: str, player_state: str, is_playing: bool, attributes: dict) -> None:
+    def publish_state(
+        self, object_id: str, player_state: str, is_playing: bool, attributes: dict
+    ) -> None:
         state_topic = f"{self.topic_prefix}/{object_id}/state"
         attrs_topic = f"{self.topic_prefix}/{object_id}/attributes"
         self.client.publish(state_topic, player_state, qos=1, retain=True)
-        self.client.publish(attrs_topic, json.dumps({**attributes, "is_playing": is_playing}), qos=1, retain=True)
+        self.client.publish(
+            attrs_topic, json.dumps({**attributes, "is_playing": is_playing}), qos=1, retain=True
+        )
 
     def close(self):
         self.client.loop_stop()
