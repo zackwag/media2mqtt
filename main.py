@@ -12,6 +12,7 @@ Env vars:
                             choices: music, podcasts
   POLL_INTERVAL_SECONDS     optional, default 1
 """
+
 from __future__ import annotations
 
 import logging
@@ -45,7 +46,9 @@ def main() -> None:
     discovery_prefix = os.environ.get("MQTT_DISCOVERY_PREFIX", "homeassistant")
     topic_prefix = os.environ.get("MQTT_TOPIC_PREFIX", "media2mqtt")
     device_name = os.environ.get("DEVICE_NAME", platform.node())
-    enabled_app_keys = [k.strip().lower() for k in os.environ.get("ENABLED_APPS", "music").split(",")]
+    enabled_app_keys = [
+        k.strip().lower() for k in os.environ.get("ENABLED_APPS", "music").split(",")
+    ]
     poll_interval = int(os.environ.get("POLL_INTERVAL_SECONDS", "1"))
 
     apps = []
@@ -79,7 +82,9 @@ def main() -> None:
             except Exception:
                 _LOGGER.exception("Error polling %s", key)
                 continue
-            publisher.publish_state(object_ids[key], state.player_state, state.is_playing, state.attributes)
+            publisher.publish_state(
+                object_ids[key], state.player_state, state.is_playing, state.attributes
+            )
             states[key] = (app.app_name, state)
 
         active = next(((k, name, s) for k, (name, s) in states.items() if s.is_playing), None)
