@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/zackwag/media2mqtt/compare/v1.4.2...v1.5.0) (2026-09-17)
+
+
+### Features
+
+* **ci:** add ruff lint + format check ([#13](https://github.com/zackwag/media2mqtt/issues/13)) ([b198317](https://github.com/zackwag/media2mqtt/commit/b198317401436bd0270d51800f079f08b408c9b3))
+
 ## [1.4.2](https://github.com/zackwag/media2mqtt/compare/v1.4.1...v1.4.2) (2026-09-17)
 
 
