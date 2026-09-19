@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/zackwag/media2mqtt/compare/v1.5.0...v1.6.0) (2026-09-19)
+
+
+### Features
+
+* add MQTT playback control via nowplaying-cli ([#15](https://github.com/zackwag/media2mqtt/issues/15)) ([275080e](https://github.com/zackwag/media2mqtt/commit/275080e10c6d906dd13e39460cc55329b54a6e05))
+
 ## [1.5.0](https://github.com/zackwag/media2mqtt/compare/v1.4.2...v1.5.0) (2026-09-17)
 
 
