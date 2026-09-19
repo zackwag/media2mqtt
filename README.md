@@ -10,11 +10,11 @@ Each enabled app gets a `sensor` entity under a shared device in Home Assistant.
 |---|---|---|
 | `sensor.{device_name}_music` | `playing` / `paused` / `stopped` / `idle` | `track`, `artist`, `album`, `duration`, `elapsed`, `is_playing` |
 | `sensor.{device_name}_podcasts` | `playing` / `paused` / `stopped` / `idle` | `episode`, `show`, `duration`, `elapsed`, `is_playing` |
-| `sensor.{device_name}_now_playing` | `playing` / `idle` | `source`, `title`, `subtitle`, `duration`, `elapsed`, `is_playing` |
+| `sensor.{device_name}_now_playing` | `playing` / `paused` / `idle` | `source`, `title`, `subtitle`, `duration`, `elapsed`, `is_playing` |
 
 For example, with `DEVICE_NAME=Zack's Work MacBook`, the entity ID would be `sensor.zacks_work_macbook_music`.
 
-`idle` means the app isn't running. `is_playing` is a boolean for easy automations.
+`idle` means the app isn't running (or, for `now_playing`, that nothing is playing or paused). `is_playing` is a boolean for easy automations.
 
 ## Playback control
 
@@ -126,8 +126,7 @@ media_player:
   - platform: universal
     name: "Zack's Work MacBook"
     unique_id: zacks_work_macbook_media_player
-    state_template: >
-      {{ 'playing' if is_state('sensor.zacks_work_macbook_now_playing', 'playing') else 'idle' }}
+    state_template: "{{ states('sensor.zacks_work_macbook_now_playing') }}"
     attributes:
       media_title: sensor.zacks_work_macbook_now_playing|title
       media_artist: sensor.zacks_work_macbook_now_playing|subtitle
