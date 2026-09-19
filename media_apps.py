@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -11,6 +12,17 @@ from dataclasses import dataclass, field
 _LOGGER = logging.getLogger(__name__)
 
 _SEPARATOR = "|||"
+
+
+def find_nowplaying_cli() -> str | None:
+    """Locate the nowplaying-cli binary, checking common Homebrew install paths."""
+    binary = shutil.which("nowplaying-cli")
+    if binary:
+        return binary
+    for path in ["/opt/homebrew/bin/nowplaying-cli", "/usr/local/bin/nowplaying-cli"]:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return None
 
 
 @dataclass
@@ -105,14 +117,7 @@ class PodcastsApp(MediaApp):
     bundle_id = "com.apple.podcasts"
 
     def __init__(self):
-        import os
-
-        self._nowplaying_bin = shutil.which("nowplaying-cli")
-        if not self._nowplaying_bin:
-            for path in ["/opt/homebrew/bin/nowplaying-cli", "/usr/local/bin/nowplaying-cli"]:
-                if os.path.isfile(path) and os.access(path, os.X_OK):
-                    self._nowplaying_bin = path
-                    break
+        self._nowplaying_bin = find_nowplaying_cli()
         if not self._nowplaying_bin:
             raise RuntimeError(
                 "nowplaying-cli is required for Podcasts support: brew install nowplaying-cli"
