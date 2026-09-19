@@ -16,11 +16,38 @@ For example, with `DEVICE_NAME=Zack's Work MacBook`, the entity ID would be `sen
 
 `idle` means the app isn't running. `is_playing` is a boolean for easy automations.
 
+## Playback control
+
+If [`nowplaying-cli`](https://github.com/kirtan-shah/nowplaying-cli) is installed, media2mqtt subscribes to a command topic and forwards commands to it:
+
+```
+media2mqtt/{device_name}/command
+```
+
+Publish one of these payloads to control playback (works regardless of which app is playing, since `nowplaying-cli` controls the system-level media session):
+
+| Payload | Effect |
+|---|---|
+| `play` | Resume playback |
+| `pause` | Pause playback |
+| `togglePlayPause` | Toggle play/pause |
+| `next` | Skip to next track |
+| `previous` | Skip to previous track |
+
+For example, with `DEVICE_NAME=Zack's Work MacBook`:
+
+```bash
+mosquitto_pub -t "media2mqtt/zacks_work_macbook/command" -m "togglePlayPause"
+```
+
+If `nowplaying-cli` isn't installed, playback control is skipped (sensors still work). See [Home Assistant Examples](#home-assistant-examples) below for wiring this up as a `media_player` entity with native transport controls.
+
 ## Requirements
 
 - macOS with Apple Music and/or Podcasts
 - MQTT broker (e.g. [Mosquitto](https://mosquitto.org/))
 - Home Assistant with MQTT integration enabled
+- [`nowplaying-cli`](https://github.com/kirtan-shah/nowplaying-cli) (`brew install nowplaying-cli`) — required for Podcasts support and for playback control
 
 ## Install
 
@@ -89,6 +116,53 @@ class MyApp(MediaApp):
 Add it to `AVAILABLE_APPS` at the bottom of the file, then include its key in `ENABLED_APPS`.
 
 ## Home Assistant Examples
+
+### media_player entity with transport controls
+
+Home Assistant's MQTT integration has no `media_player` discovery schema, but the built-in [Universal Media Player](https://www.home-assistant.io/integrations/universal/) platform can wrap the `now_playing` sensor and map its actions back onto the [command topic](#playback-control) via `mqtt.publish`, giving you a real `media_player` entity with native play/pause/next/previous controls in the HA UI. Add to `configuration.yaml`:
+
+```yaml
+media_player:
+  - platform: universal
+    name: "Zack's Work MacBook"
+    unique_id: zacks_work_macbook_media_player
+    state_template: >
+      {{ 'playing' if is_state('sensor.zacks_work_macbook_now_playing', 'playing') else 'idle' }}
+    attributes:
+      media_title: sensor.zacks_work_macbook_now_playing|title
+      media_artist: sensor.zacks_work_macbook_now_playing|subtitle
+      media_duration: sensor.zacks_work_macbook_now_playing|duration
+      media_position: sensor.zacks_work_macbook_now_playing|elapsed
+      app_name: sensor.zacks_work_macbook_now_playing|source
+    commands:
+      media_play:
+        action: mqtt.publish
+        data:
+          topic: media2mqtt/zacks_work_macbook/command
+          payload: play
+      media_pause:
+        action: mqtt.publish
+        data:
+          topic: media2mqtt/zacks_work_macbook/command
+          payload: pause
+      media_play_pause:
+        action: mqtt.publish
+        data:
+          topic: media2mqtt/zacks_work_macbook/command
+          payload: togglePlayPause
+      media_next_track:
+        action: mqtt.publish
+        data:
+          topic: media2mqtt/zacks_work_macbook/command
+          payload: next
+      media_previous_track:
+        action: mqtt.publish
+        data:
+          topic: media2mqtt/zacks_work_macbook/command
+          payload: previous
+```
+
+Replace `zacks_work_macbook` with your device's slug (see [Sensors](#sensors) above).
 
 ### Grouped Now Playing sensor
 

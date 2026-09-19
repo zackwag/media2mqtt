@@ -31,7 +31,8 @@ pytest
 
 - `main.py` — entry point, polling loop
 - `media_apps.py` — macOS media app state via `osascript`
-- `mqtt_publisher.py` — MQTT Discovery publishing
+- `mqtt_publisher.py` — MQTT Discovery publishing, command topic subscription
+- `playback_control.py` — executes `nowplaying-cli` playback commands
 - `test_media_apps.py` — pytest suite for `media_apps.py`
 - `install.sh` / `uninstall.sh` / `com.media2mqtt.plist` — launchd service management
 

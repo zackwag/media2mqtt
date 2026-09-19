@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import platform
+import queue
 import subprocess
+import threading
+from collections.abc import Callable
 
 import paho.mqtt.client as mqtt
 
@@ -44,6 +47,9 @@ class MqttPublisher:
         self.discovery_prefix = discovery_prefix
         self.topic_prefix = topic_prefix
         self._connected = False
+        self._command_topic: str | None = None
+        self._command_handler: Callable[[str], None] | None = None
+        self._command_queue: queue.Queue[str] | None = None
 
         self.client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2, client_id=f"media2mqtt_{_slugify(platform.node())}"
@@ -52,6 +58,7 @@ class MqttPublisher:
             self.client.username_pw_set(username, password)
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
+        self.client.on_message = self._on_message
         self.client.reconnect_delay_set(min_delay=1, max_delay=60)
         self._mac_model = _get_mac_model()
         self._try_connect()
@@ -60,8 +67,27 @@ class MqttPublisher:
         if reason_code == 0:
             _LOGGER.info("Connected to MQTT broker at %s:%s", self.host, self.port)
             self._connected = True
+            if self._command_topic:
+                self.client.subscribe(self._command_topic, qos=1)
         else:
             _LOGGER.warning("MQTT connection refused: %s", reason_code)
+
+    def _on_message(self, client, userdata, msg):
+        if msg.topic != self._command_topic or self._command_queue is None:
+            return
+        payload = msg.payload.decode("utf-8", errors="replace")
+        self._command_queue.put(payload)
+
+    def _process_commands(self):
+        while True:
+            payload = self._command_queue.get()
+            handler = self._command_handler
+            if handler is None:
+                continue
+            try:
+                handler(payload)
+            except Exception:
+                _LOGGER.exception("Error handling command %r", payload)
 
     def _on_disconnect(self, client, userdata, flags, reason_code, properties=None):
         self._connected = False
@@ -129,6 +155,26 @@ class MqttPublisher:
         self.client.publish(
             attrs_topic, json.dumps({**attributes, "is_playing": is_playing}), qos=1, retain=True
         )
+
+    def command_topic(self, device_name: str) -> str:
+        return f"{self.topic_prefix}/{_slugify(device_name)}/command"
+
+    def subscribe_commands(self, device_name: str, handler: Callable[[str], None]) -> str:
+        """Subscribe to the device's command topic, invoking handler(payload) for each message.
+
+        Commands run on a dedicated worker thread, one at a time, so a slow or hung
+        handler can't block the MQTT network loop (and thus keepalive/publishing).
+        Resubscribes automatically after reconnects.
+        """
+        topic = self.command_topic(device_name)
+        self._command_topic = topic
+        self._command_handler = handler
+        if self._command_queue is None:
+            self._command_queue = queue.Queue()
+            threading.Thread(target=self._process_commands, daemon=True).start()
+        if self._connected:
+            self.client.subscribe(topic, qos=1)
+        return topic
 
     def close(self):
         self.client.loop_stop()

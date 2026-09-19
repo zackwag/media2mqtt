@@ -11,6 +11,14 @@ Env vars:
   ENABLED_APPS              optional, comma-separated, default "music"
                             choices: music, podcasts
   POLL_INTERVAL_SECONDS     optional, default 1
+
+Playback control:
+  If nowplaying-cli is installed (`brew install nowplaying-cli`), media2mqtt
+  subscribes to a command topic (MQTT_TOPIC_PREFIX/{device}/command) and runs
+  play/pause/togglePlayPause/next/previous against it. nowplaying-cli controls
+  playback at the system level, so this works regardless of which app is
+  playing. If it's not installed, playback control is skipped and only
+  sensors are published.
 """
 
 from __future__ import annotations
@@ -23,6 +31,7 @@ import time
 
 from media_apps import AVAILABLE_APPS, MediaState
 from mqtt_publisher import MqttPublisher
+from playback_control import PlaybackController
 
 _TITLE_KEYS = {"music": "track", "podcasts": "episode"}
 
@@ -72,6 +81,14 @@ def main() -> None:
     for key, app in apps:
         object_ids[key] = publisher.publish_discovery(key, app.app_name, device_name)
     now_playing_id = publisher.publish_now_playing_discovery(device_name)
+
+    try:
+        controller = PlaybackController()
+    except RuntimeError as exc:
+        _LOGGER.warning("Playback control disabled: %s", exc)
+    else:
+        command_topic = publisher.subscribe_commands(device_name, controller.handle_command)
+        _LOGGER.info("Playback control enabled, listening on %s", command_topic)
 
     _LOGGER.info("Polling %s every %ss", ", ".join(k for k, _ in apps), poll_interval)
     while True:
