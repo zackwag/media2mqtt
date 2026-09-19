@@ -30,8 +30,18 @@ jobs:
 
       - name: Update formula
         run: |
-          sed -i 's/^  version ".*"/  version "${{ steps.version.outputs.version }}"/' Formula/media2mqtt.rb
+          # The formula has no separate `version` field (brew style flags it as
+          # redundant when it's inferable from the url), so the version lives only
+          # in the url's tag segment - rewrite that directly rather than a
+          # `version "..."` line, which no longer exists and would silently no-op.
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i -E "s#(archive/refs/tags/v)[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)#\1${VERSION}\2#" Formula/media2mqtt.rb
           sed -i '0,/^  sha256 ".*"/{s/^  sha256 ".*"/  sha256 "${{ steps.sha.outputs.sha256 }}"/}' Formula/media2mqtt.rb
+
+          grep -q "v${VERSION}.tar.gz" Formula/media2mqtt.rb || {
+            echo "::error::url in Formula/media2mqtt.rb was not updated to v${VERSION}"
+            exit 1
+          }
 
       - name: Open PR against homebrew-tap
         env:
