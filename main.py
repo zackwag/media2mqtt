@@ -104,7 +104,14 @@ def main() -> None:
             )
             states[key] = (app.app_name, state)
 
-        active = next(((k, name, s) for k, (name, s) in states.items() if s.is_playing), None)
+        active = next(
+            (
+                (k, name, s)
+                for k, (name, s) in states.items()
+                if s.player_state in ("playing", "paused")
+            ),
+            None,
+        )
         if active:
             key, source, state = active
             title_key = _TITLE_KEYS.get(key, "track")
@@ -117,7 +124,7 @@ def main() -> None:
                 attrs["duration"] = state.attributes["duration"]
             if "elapsed" in state.attributes:
                 attrs["elapsed"] = state.attributes["elapsed"]
-            publisher.publish_state(now_playing_id, "playing", True, attrs)
+            publisher.publish_state(now_playing_id, state.player_state, state.is_playing, attrs)
         else:
             publisher.publish_state(now_playing_id, "idle", False, {})
 
