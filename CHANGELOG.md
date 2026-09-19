@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/zackwag/media2mqtt/compare/v1.6.0...v1.6.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* **ci:** rewrite the url version directly, not a nonexistent version field ([#17](https://github.com/zackwag/media2mqtt/issues/17)) ([7bbe1d5](https://github.com/zackwag/media2mqtt/commit/7bbe1d52d06a93a5482fa6cc0ccf57fa3ff644a9))
+
 ## [1.6.0](https://github.com/zackwag/media2mqtt/compare/v1.5.0...v1.6.0) (2026-09-19)
 
 
