@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/zackwag/media2mqtt/compare/v1.6.1...v1.6.2) (2026-09-19)
+
+
+### Bug Fixes
+
+* keep now_playing title/artist while paused, not just playing ([#19](https://github.com/zackwag/media2mqtt/issues/19)) ([1208bf3](https://github.com/zackwag/media2mqtt/commit/1208bf36c38c49cbe77cd73f13b5c9a41318de1f))
+
 ## [1.6.1](https://github.com/zackwag/media2mqtt/compare/v1.6.0...v1.6.1) (2026-09-19)
 
 
