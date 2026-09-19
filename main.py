@@ -19,6 +19,13 @@ Playback control:
   playback at the system level, so this works regardless of which app is
   playing. If it's not installed, playback control is skipped and only
   sensors are published.
+
+  When playback control is enabled, media2mqtt also publishes MQTT discovery
+  for a real `media_player` entity (title/artist/transport controls) via the
+  "MQTT Media Player" HACS integration: https://github.com/bkbilly/mqtt_media_player
+  Core Home Assistant has no native MQTT discovery schema for media_player, so
+  this requires that third-party integration to be installed, and only works
+  when MQTT_DISCOVERY_PREFIX is left at its default "homeassistant".
 """
 
 from __future__ import annotations
@@ -34,6 +41,7 @@ from mqtt_publisher import MqttPublisher
 from playback_control import PlaybackController
 
 _TITLE_KEYS = {"music": "track", "podcasts": "episode"}
+_MEDIA_TYPES = {"music": "music", "podcasts": "podcast"}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 _LOGGER = logging.getLogger("media2mqtt")
@@ -82,6 +90,7 @@ def main() -> None:
         object_ids[key] = publisher.publish_discovery(key, app.app_name, device_name)
     now_playing_id = publisher.publish_now_playing_discovery(device_name)
 
+    media_player_id: str | None = None
     try:
         controller = PlaybackController()
     except RuntimeError as exc:
@@ -89,6 +98,7 @@ def main() -> None:
     else:
         command_topic = publisher.subscribe_commands(device_name, controller.handle_command)
         _LOGGER.info("Playback control enabled, listening on %s", command_topic)
+        media_player_id = publisher.publish_media_player_discovery(device_name)
 
     _LOGGER.info("Polling %s every %ss", ", ".join(k for k, _ in apps), poll_interval)
     while True:
@@ -114,19 +124,28 @@ def main() -> None:
         )
         if active:
             key, source, state = active
-            title_key = _TITLE_KEYS.get(key, "track")
-            attrs = {
-                "source": source,
-                "title": state.attributes.get(title_key, ""),
-                "subtitle": state.attributes.get("artist", state.attributes.get("show", "")),
-            }
+            title = state.attributes.get(_TITLE_KEYS.get(key, "track"), "")
+            subtitle = state.attributes.get("artist", state.attributes.get("show", ""))
+            attrs = {"source": source, "title": title, "subtitle": subtitle}
             if "duration" in state.attributes:
                 attrs["duration"] = state.attributes["duration"]
             if "elapsed" in state.attributes:
                 attrs["elapsed"] = state.attributes["elapsed"]
             publisher.publish_state(now_playing_id, state.player_state, state.is_playing, attrs)
+            if media_player_id:
+                publisher.publish_media_player_state(
+                    media_player_id,
+                    player_state=state.player_state,
+                    title=title,
+                    artist=subtitle,
+                    media_type=_MEDIA_TYPES.get(key, "music"),
+                    duration=state.attributes.get("duration"),
+                    position=state.attributes.get("elapsed"),
+                )
         else:
             publisher.publish_state(now_playing_id, "idle", False, {})
+            if media_player_id:
+                publisher.publish_media_player_state(media_player_id, player_state="idle")
 
         time.sleep(poll_interval)
 
