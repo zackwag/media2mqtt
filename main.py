@@ -36,7 +36,7 @@ import platform
 import sys
 import time
 
-from media_apps import AVAILABLE_APPS, MediaState
+from media_apps import AVAILABLE_APPS, MediaState, find_nowplaying_cli, get_artwork_b64
 from mqtt_publisher import MqttPublisher
 from playback_control import PlaybackController
 
@@ -91,6 +91,7 @@ def main() -> None:
     now_playing_id = publisher.publish_now_playing_discovery(device_name)
 
     media_player_id: str | None = None
+    nowplaying_bin: str | None = None
     try:
         controller = PlaybackController()
     except RuntimeError as exc:
@@ -99,6 +100,10 @@ def main() -> None:
         command_topic = publisher.subscribe_commands(device_name, controller.handle_command)
         _LOGGER.info("Playback control enabled, listening on %s", command_topic)
         media_player_id = publisher.publish_media_player_discovery(device_name)
+        nowplaying_bin = find_nowplaying_cli()
+
+    last_artwork_key: tuple[str, str] | None = None
+    last_artwork_b64: str = ""
 
     _LOGGER.info("Polling %s every %ss", ", ".join(k for k, _ in apps), poll_interval)
     while True:
@@ -133,6 +138,12 @@ def main() -> None:
                 attrs["elapsed"] = state.attributes["elapsed"]
             publisher.publish_state(now_playing_id, state.player_state, state.is_playing, attrs)
             if media_player_id:
+                artwork_key = (title, subtitle)
+                albumart_b64: str | None = None
+                if artwork_key != last_artwork_key and nowplaying_bin:
+                    last_artwork_b64 = get_artwork_b64(nowplaying_bin)
+                    last_artwork_key = artwork_key
+                    albumart_b64 = last_artwork_b64
                 publisher.publish_media_player_state(
                     media_player_id,
                     player_state=state.player_state,
@@ -141,11 +152,17 @@ def main() -> None:
                     media_type=_MEDIA_TYPES.get(key, "music"),
                     duration=state.attributes.get("duration"),
                     position=state.attributes.get("elapsed"),
+                    albumart_b64=albumart_b64,
                 )
         else:
             publisher.publish_state(now_playing_id, "idle", False, {})
             if media_player_id:
-                publisher.publish_media_player_state(media_player_id, player_state="idle")
+                albumart_b64 = "" if last_artwork_key is not None else None
+                last_artwork_key = None
+                last_artwork_b64 = ""
+                publisher.publish_media_player_state(
+                    media_player_id, player_state="idle", albumart_b64=albumart_b64
+                )
 
         time.sleep(poll_interval)
 
