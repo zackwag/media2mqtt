@@ -92,6 +92,7 @@ class Coordinator:
         self._devices: dict[str, DeviceState] = {}
         self._topic_to_device: dict[str, tuple[str, str]] = {}
         self._active_device_id: str | None = None
+        self._last_albumart: str = ""
         self._lock = threading.Lock()
 
         group_slug = _slugify(group_device_name)
@@ -250,8 +251,10 @@ class Coordinator:
             self.client.publish(f"{t}/mediatype", dev.mediatype, qos=1, retain=True)
             self.client.publish(f"{t}/duration", dev.duration, qos=1, retain=True)
             self.client.publish(f"{t}/position", dev.position, qos=1, retain=True)
-            if active != prev_active:
+            if dev.albumart != self._last_albumart:
+                self._last_albumart = dev.albumart
                 self.client.publish(f"{t}/albumart", dev.albumart, qos=1, retain=True)
+            if active != prev_active:
                 source_name = dev.config.get("name", dev.device_id)
                 self.client.publish(self._source_state_topic, source_name, qos=1, retain=True)
         else:
@@ -262,6 +265,7 @@ class Coordinator:
             self.client.publish(f"{t}/duration", "", qos=1, retain=True)
             self.client.publish(f"{t}/position", "", qos=1, retain=True)
             if prev_active is not None:
+                self._last_albumart = ""
                 self.client.publish(f"{t}/albumart", "", qos=1, retain=True)
                 self.client.publish(self._source_state_topic, "", qos=1, retain=True)
 
