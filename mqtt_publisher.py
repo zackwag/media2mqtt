@@ -188,6 +188,7 @@ class MqttPublisher:
             "state_artist_topic": f"{topic}/artist",
             "state_duration_topic": f"{topic}/duration",
             "state_position_topic": f"{topic}/position",
+            "state_albumart_topic": f"{topic}/albumart",
             "state_mediatype_topic": f"{topic}/mediatype",
             "command_play_topic": command_topic,
             "command_play_payload": "play",
@@ -210,6 +211,7 @@ class MqttPublisher:
         media_type: str = "",
         duration: str | float | None = None,
         position: str | float | None = None,
+        albumart_b64: str | None = None,
     ) -> None:
         topic = f"{self.topic_prefix}/{object_id}"
         self.client.publish(f"{topic}/state", player_state, qos=1, retain=True)
@@ -218,6 +220,8 @@ class MqttPublisher:
         self.client.publish(f"{topic}/mediatype", media_type, qos=1, retain=True)
         self.client.publish(f"{topic}/duration", _as_int_str(duration), qos=1, retain=True)
         self.client.publish(f"{topic}/position", _as_int_str(position), qos=1, retain=True)
+        if albumart_b64 is not None:
+            self.client.publish(f"{topic}/albumart", albumart_b64, qos=1, retain=True)
 
     def subscribe_commands(self, device_name: str, handler: Callable[[str], None]) -> str:
         """Subscribe to the device's command topic, invoking handler(payload) for each message.

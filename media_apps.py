@@ -172,6 +172,24 @@ class PodcastsApp(MediaApp):
         return MediaState(player_state=player_state, is_playing=is_playing, attributes=attrs)
 
 
+def get_artwork_b64(nowplaying_bin: str) -> str:
+    """Fetch the current now-playing artwork as a base64 string via nowplaying-cli."""
+    try:
+        result = subprocess.run(
+            [nowplaying_bin, "get", "artworkData"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return ""
+        return result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        _LOGGER.warning("nowplaying-cli artworkData timed out")
+        return ""
+
+
 AVAILABLE_APPS: dict[str, type[MediaApp]] = {
     "music": MusicApp,
     "podcasts": PodcastsApp,
