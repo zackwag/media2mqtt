@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/zackwag/media2mqtt/compare/v1.7.0...v1.8.0) (2026-09-21)
+
+
+### Features
+
+* publish album art to the media_player entity ([#23](https://github.com/zackwag/media2mqtt/issues/23)) ([9446753](https://github.com/zackwag/media2mqtt/commit/94467539bce72494870f234609bdf4a81c65464c))
+
 ## [1.7.0](https://github.com/zackwag/media2mqtt/compare/v1.6.2...v1.7.0) (2026-09-21)
 
 
