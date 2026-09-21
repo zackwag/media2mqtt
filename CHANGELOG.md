@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/zackwag/media2mqtt/compare/v1.8.0...v1.9.0) (2026-09-21)
+
+
+### Features
+
+* add grouped media_player coordinator for multi-Mac setups ([#25](https://github.com/zackwag/media2mqtt/issues/25)) ([67eb7d1](https://github.com/zackwag/media2mqtt/commit/67eb7d1627e29f7c60e3ff25f089e5e57cf39380))
+
 ## [1.8.0](https://github.com/zackwag/media2mqtt/compare/v1.7.0...v1.8.0) (2026-09-21)
 
 
