@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/zackwag/media2mqtt/compare/v1.6.2...v1.7.0) (2026-09-21)
+
+
+### Features
+
+* publish MQTT discovery for a real media_player entity ([#21](https://github.com/zackwag/media2mqtt/issues/21)) ([99bee70](https://github.com/zackwag/media2mqtt/commit/99bee702f9e136369d7c23aad0b459776a0667d1))
+
 ## [1.6.2](https://github.com/zackwag/media2mqtt/compare/v1.6.1...v1.6.2) (2026-09-19)
 
 
