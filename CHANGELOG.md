@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/zackwag/media2mqtt/compare/v1.9.0...v1.9.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* forward albumart when it changes, not just on device switch ([#27](https://github.com/zackwag/media2mqtt/issues/27)) ([d47d058](https://github.com/zackwag/media2mqtt/commit/d47d05852c8ddb4e6294e2c8a5c5c864bf9b2fcf))
+
 ## [1.9.0](https://github.com/zackwag/media2mqtt/compare/v1.8.0...v1.9.0) (2026-09-21)
 
 
