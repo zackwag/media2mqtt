@@ -159,6 +159,66 @@ class MqttPublisher:
     def command_topic(self, device_name: str) -> str:
         return f"{self.topic_prefix}/{_slugify(device_name)}/command"
 
+    def publish_media_player_discovery(self, device_name: str) -> str:
+        """Publish discovery for the "MQTT Media Player" HACS integration.
+
+        Core Home Assistant's MQTT integration has no discovery schema for
+        media_player entities, so this targets a third-party integration instead:
+        https://github.com/bkbilly/mqtt_media_player (install via HACS - it isn't
+        in the default store, add it as a custom repository). It listens on a
+        hardcoded "homeassistant/media_player/#" topic regardless of
+        MQTT_DISCOVERY_PREFIX, so this entity is only discovered when that prefix
+        is left at its default "homeassistant".
+
+        Reuses the same device block as the sensors, so this entity merges onto
+        that device's page instead of creating a separate one, and repoints all
+        of its command topics at the existing playback command topic/payloads so
+        playback_control.py needs no changes.
+        """
+        device_slug = _slugify(device_name)
+        object_id = f"{device_slug}_media_player"
+        topic = f"{self.topic_prefix}/{object_id}"
+        command_topic = self.command_topic(device_name)
+        config_topic = f"{self.discovery_prefix}/media_player/{object_id}/config"
+        payload = {
+            "name": device_name,
+            "device": self._device_block(device_name),
+            "state_state_topic": f"{topic}/state",
+            "state_title_topic": f"{topic}/title",
+            "state_artist_topic": f"{topic}/artist",
+            "state_duration_topic": f"{topic}/duration",
+            "state_position_topic": f"{topic}/position",
+            "state_mediatype_topic": f"{topic}/mediatype",
+            "command_play_topic": command_topic,
+            "command_play_payload": "play",
+            "command_pause_topic": command_topic,
+            "command_pause_payload": "pause",
+            "command_next_topic": command_topic,
+            "command_next_payload": "next",
+            "command_previous_topic": command_topic,
+            "command_previous_payload": "previous",
+        }
+        self.client.publish(config_topic, json.dumps(payload), qos=1, retain=True)
+        return object_id
+
+    def publish_media_player_state(
+        self,
+        object_id: str,
+        player_state: str,
+        title: str = "",
+        artist: str = "",
+        media_type: str = "",
+        duration: str | float | None = None,
+        position: str | float | None = None,
+    ) -> None:
+        topic = f"{self.topic_prefix}/{object_id}"
+        self.client.publish(f"{topic}/state", player_state, qos=1, retain=True)
+        self.client.publish(f"{topic}/title", title, qos=1, retain=True)
+        self.client.publish(f"{topic}/artist", artist, qos=1, retain=True)
+        self.client.publish(f"{topic}/mediatype", media_type, qos=1, retain=True)
+        self.client.publish(f"{topic}/duration", _as_int_str(duration), qos=1, retain=True)
+        self.client.publish(f"{topic}/position", _as_int_str(position), qos=1, retain=True)
+
     def subscribe_commands(self, device_name: str, handler: Callable[[str], None]) -> str:
         """Subscribe to the device's command topic, invoking handler(payload) for each message.
 
@@ -183,3 +243,18 @@ class MqttPublisher:
 
 def _slugify(value: str) -> str:
     return "".join(c if c.isalnum() else "_" for c in value).strip("_").lower()
+
+
+def _as_int_str(value: str | float | None) -> str:
+    """Coerce a possibly-fractional duration/position value to an integer-seconds string.
+
+    The MQTT Media Player integration parses these with int(), which raises on
+    a fractional string like "452.074005126953" (what nowplaying-cli/AppleScript
+    report) - so this rounds down and stringifies instead of passing it through.
+    """
+    if value is None or value == "":
+        return ""
+    try:
+        return str(int(float(value)))
+    except (TypeError, ValueError):
+        return ""

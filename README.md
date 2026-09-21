@@ -117,9 +117,15 @@ Add it to `AVAILABLE_APPS` at the bottom of the file, then include its key in `E
 
 ## Home Assistant Examples
 
-### media_player entity with transport controls
+### media_player entity with title, artist, and transport controls (recommended)
 
-Home Assistant's MQTT integration has no `media_player` discovery schema, but the built-in [Universal Media Player](https://www.home-assistant.io/integrations/universal/) platform can wrap the `now_playing` sensor and map its actions back onto the [command topic](#playback-control) via `mqtt.publish`, giving you a real `media_player` entity with native play/pause/next/previous controls in the HA UI. Add to `configuration.yaml`:
+Core Home Assistant has no MQTT discovery schema for `media_player` entities, but the [MQTT Media Player](https://github.com/bkbilly/mqtt_media_player) HACS integration adds one. Install it via HACS (it's not in the default store — add `bkbilly/mqtt_media_player` as a custom repository), and as long as `MQTT_DISCOVERY_PREFIX` is left at its default `homeassistant`, media2mqtt auto-publishes discovery for a real `media_player` entity whenever [playback control](#playback-control) is enabled (i.e. `nowplaying-cli` is installed) — no YAML required. It shows up on the same HA device as the sensors, with live title/artist/duration/position and working play/pause/next/previous controls.
+
+If `MQTT_DISCOVERY_PREFIX` is customized, this integration won't find it — it listens on a hardcoded `homeassistant/media_player/#` topic regardless of that setting.
+
+### media_player entity with transport controls only
+
+If you'd rather not install a third-party integration, the built-in [Universal Media Player](https://www.home-assistant.io/integrations/universal/) platform can wrap the `now_playing` sensor and map its actions back onto the [command topic](#playback-control) via `mqtt.publish`. **This gets you working play/pause/next/previous controls, but not title/artist** — Universal Media Player only lets `attributes:` override a specific subset of properties (`volume_level`, `source`, `sound_mode`, `shuffle`, `repeat`, and a few others), and `media_title`/`media_artist`/`media_duration`/`media_position`/`app_name` aren't in it; those can only come from a real `media_player` child entity. Add to `configuration.yaml`:
 
 ```yaml
 media_player:
@@ -127,12 +133,6 @@ media_player:
     name: "Zack's Work MacBook"
     unique_id: zacks_work_macbook_media_player
     state_template: "{{ states('sensor.zacks_work_macbook_now_playing') }}"
-    attributes:
-      media_title: sensor.zacks_work_macbook_now_playing|title
-      media_artist: sensor.zacks_work_macbook_now_playing|subtitle
-      media_duration: sensor.zacks_work_macbook_now_playing|duration
-      media_position: sensor.zacks_work_macbook_now_playing|elapsed
-      app_name: sensor.zacks_work_macbook_now_playing|source
     commands:
       media_play:
         action: mqtt.publish
