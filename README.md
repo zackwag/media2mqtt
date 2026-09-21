@@ -119,7 +119,7 @@ Add it to `AVAILABLE_APPS` at the bottom of the file, then include its key in `E
 
 ### media_player entity with title, artist, and transport controls (recommended)
 
-Core Home Assistant has no MQTT discovery schema for `media_player` entities, but the [MQTT Media Player](https://github.com/bkbilly/mqtt_media_player) HACS integration adds one. Install it via HACS (it's not in the default store — add `bkbilly/mqtt_media_player` as a custom repository), and as long as `MQTT_DISCOVERY_PREFIX` is left at its default `homeassistant`, media2mqtt auto-publishes discovery for a real `media_player` entity whenever [playback control](#playback-control) is enabled (i.e. `nowplaying-cli` is installed) — no YAML required. It shows up on the same HA device as the sensors, with live title/artist/duration/position and working play/pause/next/previous controls.
+Core Home Assistant has no MQTT discovery schema for `media_player` entities, but the [MQTT Media Player](https://github.com/bkbilly/mqtt_media_player) HACS integration adds one. Install it via HACS (it's not in the default store — add `bkbilly/mqtt_media_player` as a custom repository), and as long as `MQTT_DISCOVERY_PREFIX` is left at its default `homeassistant`, media2mqtt auto-publishes discovery for a real `media_player` entity whenever [playback control](#playback-control) is enabled (i.e. `nowplaying-cli` is installed) — no YAML required. It shows up on the same HA device as the sensors, with live title/artist/album art/duration/position and working play/pause/next/previous controls.
 
 If `MQTT_DISCOVERY_PREFIX` is customized, this integration won't find it — it listens on a hardcoded `homeassistant/media_player/#` topic regardless of that setting.
 
@@ -163,88 +163,60 @@ media_player:
 
 Replace `zacks_work_macbook` with your device's slug (see [Sensors](#sensors) above).
 
-### Grouped Now Playing sensor
+### Grouped media_player (multi-Mac)
 
-If you run media2mqtt on multiple Macs, a template sensor can aggregate them into a single "Now Playing" entity. Add to `configuration.yaml`:
+If you run media2mqtt on multiple Macs, the coordinator aggregates all of them into a single `media_player` entity with album art and transport controls. It auto-discovers devices via retained MQTT discovery messages — no manual device list needed.
 
-```yaml
-template:
-  - sensor:
-      - name: "Now Playing"
-        icon: mdi:play-circle
-        state: >
-          {% set sensors = [
-            states('sensor.office_mac_mini_now_playing'),
-            states('sensor.zacks_work_macbook_now_playing'),
-          ] %}
-          {% if 'playing' in sensors %}
-            playing
-          {% else %}
-            idle
-          {% endif %}
-        attributes:
-          source: >
-            {% if is_state('sensor.office_mac_mini_now_playing', 'playing') %}
-              {{ state_attr('sensor.office_mac_mini_now_playing', 'source') }}
-            {% elif is_state('sensor.zacks_work_macbook_now_playing', 'playing') %}
-              {{ state_attr('sensor.zacks_work_macbook_now_playing', 'source') }}
-            {% endif %}
-          device: >
-            {% if is_state('sensor.office_mac_mini_now_playing', 'playing') %}
-              Office Mac Mini
-            {% elif is_state('sensor.zacks_work_macbook_now_playing', 'playing') %}
-              Zack's Work MacBook
-            {% endif %}
-          title: >
-            {% if is_state('sensor.office_mac_mini_now_playing', 'playing') %}
-              {{ state_attr('sensor.office_mac_mini_now_playing', 'title') }}
-            {% elif is_state('sensor.zacks_work_macbook_now_playing', 'playing') %}
-              {{ state_attr('sensor.zacks_work_macbook_now_playing', 'title') }}
-            {% endif %}
-          subtitle: >
-            {% if is_state('sensor.office_mac_mini_now_playing', 'playing') %}
-              {{ state_attr('sensor.office_mac_mini_now_playing', 'subtitle') }}
-            {% elif is_state('sensor.zacks_work_macbook_now_playing', 'playing') %}
-              {{ state_attr('sensor.zacks_work_macbook_now_playing', 'subtitle') }}
-            {% endif %}
+The coordinator has no macOS dependencies and can run on any machine with MQTT access (including the HA host itself).
+
+```bash
+python3 coordinator.py
 ```
 
-The first device listed takes priority when both are playing simultaneously.
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `MQTT_HOST` | yes | | MQTT broker IP address |
+| `MQTT_PORT` | no | `1883` | MQTT broker port |
+| `MQTT_USERNAME` | no | | MQTT broker username |
+| `MQTT_PASSWORD` | no | | MQTT broker password |
+| `MQTT_DISCOVERY_PREFIX` | no | `homeassistant` | HA discovery topic prefix |
+| `MQTT_TOPIC_PREFIX` | no | `media2mqtt` | State/attribute topic prefix |
+| `GROUP_NAME` | no | `Now Playing` | Display name of the grouped entity |
+| `GROUP_DEVICE_NAME` | no | `media2mqtt` | Device name in HA device registry |
+
+The grouped entity uses sticky priority: it shows whichever Mac is currently playing. If nothing is playing, it falls back to paused, then idle. Transport commands (play/pause/next/previous) are routed to the active Mac. A `sensor.media2mqtt_source` entity on the same device shows which Mac is currently active.
 
 ### iOS Live Activity
 
-Show what's playing on your iPhone lock screen and Dynamic Island using the HA Companion App:
+Show what's playing on your iPhone lock screen and Dynamic Island using the HA Companion App. This example uses the [grouped media_player](#grouped-media_player-multi-mac) entity, but works with any per-device media_player entity too — just change the `entity_id`.
 
 ```yaml
 alias: Now Playing - Start/Update Live Activity
 triggers:
   - trigger: state
-    entity_id: sensor.now_playing
+    entity_id: media_player.media2mqtt_now_playing
     to: playing
   - trigger: state
-    entity_id: sensor.now_playing
-    attribute: title
-  - trigger: state
-    entity_id: sensor.now_playing
-    attribute: source
+    entity_id: media_player.media2mqtt_now_playing
+    attribute: media_title
 conditions:
   - condition: state
-    entity_id: sensor.now_playing
+    entity_id: media_player.media2mqtt_now_playing
     state: playing
 actions:
   - delay: '00:00:01'
   - action: notify.mobile_app_<your_iphone>
     data:
-      title: "{{ state_attr('sensor.now_playing', 'title') }}{% if state_attr('sensor.now_playing', 'subtitle') %} — {{ state_attr('sensor.now_playing', 'subtitle') }}{% endif %}"
+      title: "{{ state_attr('media_player.media2mqtt_now_playing', 'media_title') }}{% if state_attr('media_player.media2mqtt_now_playing', 'media_artist') %} — {{ state_attr('media_player.media2mqtt_now_playing', 'media_artist') }}{% endif %}"
       message: Now Playing
       data:
         tag: now-playing
         live_update: true
         chronometer: true
-        when: "{{ ((state_attr('sensor.now_playing', 'duration') | float(0)) - (state_attr('sensor.now_playing', 'elapsed') | float(0))) | int }}"
+        when: "{{ ((state_attr('media_player.media2mqtt_now_playing', 'media_duration') | float(0)) - (state_attr('media_player.media2mqtt_now_playing', 'media_position') | float(0))) | int }}"
         when_relative: true
-        notification_icon: "{% if state_attr('sensor.now_playing', 'source') == 'Music' %}mdi:music-note{% else %}mdi:podcast{% endif %}"
-        notification_icon_color: "{% if state_attr('sensor.now_playing', 'source') == 'Music' %}#FC3C44{% else %}#8E4EC6{% endif %}"
+        notification_icon: "{% if state_attr('media_player.media2mqtt_now_playing', 'media_content_type') == 'music' %}mdi:music-note{% else %}mdi:podcast{% endif %}"
+        notification_icon_color: "{% if state_attr('media_player.media2mqtt_now_playing', 'media_content_type') == 'music' %}#FC3C44{% else %}#8E4EC6{% endif %}"
 mode: restart
 ```
 
@@ -260,10 +232,10 @@ Additionally, you probably want an activity to clear on pause/stop:
 alias: Now Playing - End Live Activity
 triggers:
   - trigger: state
-    entity_id: sensor.now_playing
+    entity_id: media_player.media2mqtt_now_playing
     from: playing
 actions:
-  - action: notify.mobile_app_zack_wagner_s_iphone
+  - action: notify.mobile_app_<your_iphone>
     data:
       message: clear_notification
       data:
