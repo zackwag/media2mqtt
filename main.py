@@ -123,7 +123,14 @@ def main() -> None:
             (
                 (k, name, s)
                 for k, (name, s) in states.items()
-                if s.player_state in ("playing", "paused")
+                if s.player_state == "playing"
+            ),
+            None,
+        ) or next(
+            (
+                (k, name, s)
+                for k, (name, s) in states.items()
+                if s.player_state == "paused"
             ),
             None,
         )
