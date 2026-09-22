@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.2](https://github.com/zackwag/media2mqtt/compare/v1.9.1...v1.9.2) (2026-09-22)
+
+
+### Bug Fixes
+
+* prioritize playing app over paused in now_playing aggregation ([#29](https://github.com/zackwag/media2mqtt/issues/29)) ([76aa7e9](https://github.com/zackwag/media2mqtt/commit/76aa7e9560b2f75f6d087e0f6e9fc38e412a173c))
+
 ## [1.9.1](https://github.com/zackwag/media2mqtt/compare/v1.9.0...v1.9.1) (2026-09-21)
 
 
