@@ -33,6 +33,11 @@ _LOGGER = logging.getLogger("media2mqtt.coordinator")
 
 _STATE_FIELDS = ("state", "title", "artist", "duration", "position", "albumart", "mediatype", "vol")
 
+_APP_SENSORS: dict[str, tuple[str, str]] = {
+    "music": ("Music", "mdi:music"),
+    "podcast": ("Podcasts", "mdi:podcast"),
+}
+
 
 def _slugify(value: str) -> str:
     return "".join(c if c.isalnum() else "_" for c in value).strip("_").lower()
@@ -109,6 +114,13 @@ class Coordinator:
         self._source_object_id = f"{group_slug}_source"
         self._source_state_topic = f"{topic_prefix}/grouped/source"
         self._source_config_topic = f"{discovery_prefix}/sensor/{self._source_object_id}/config"
+
+        self._app_sensor_topics: dict[str, str] = {}
+        self._app_sensor_config_topics: dict[str, str] = {}
+        for mediatype in _APP_SENSORS:
+            obj_id = f"{group_slug}_{mediatype}"
+            self._app_sensor_topics[mediatype] = f"{topic_prefix}/grouped/{mediatype}"
+            self._app_sensor_config_topics[mediatype] = f"{discovery_prefix}/sensor/{obj_id}/config"
 
         self.client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2, client_id=f"media2mqtt_coordinator_{group_slug}"
@@ -282,6 +294,9 @@ class Coordinator:
             if active != prev_active:
                 source_name = dev.config.get("name", dev.device_id)
                 self.client.publish(self._source_state_topic, source_name, qos=1, retain=True)
+            for mediatype, state_topic in self._app_sensor_topics.items():
+                app_state = dev.state if dev.mediatype == mediatype else "idle"
+                self.client.publish(state_topic, app_state, qos=1, retain=True)
         else:
             self.client.publish(f"{t}/state", "idle", qos=1, retain=True)
             self.client.publish(f"{t}/title", "", qos=1, retain=True)
@@ -290,6 +305,8 @@ class Coordinator:
             self.client.publish(f"{t}/duration", "", qos=1, retain=True)
             self.client.publish(f"{t}/position", "", qos=1, retain=True)
             self.client.publish(f"{t}/vol", "", qos=1, retain=True)
+            for state_topic in self._app_sensor_topics.values():
+                self.client.publish(state_topic, "idle", qos=1, retain=True)
             if prev_active is not None:
                 self._last_albumart = ""
                 self.client.publish(f"{t}/albumart", "", qos=1, retain=True)
@@ -337,11 +354,32 @@ class Coordinator:
         self.client.publish(
             self._source_config_topic, json.dumps(source_payload), qos=1, retain=True
         )
-        _LOGGER.info("Published grouped media_player and source sensor discovery")
+
+        group_slug = _slugify(self.group_device_name)
+        for mediatype, (name, icon) in _APP_SENSORS.items():
+            obj_id = f"{group_slug}_{mediatype}"
+            app_payload = {
+                "name": name,
+                "object_id": obj_id,
+                "unique_id": obj_id,
+                "state_topic": self._app_sensor_topics[mediatype],
+                "icon": icon,
+                "device": device_block,
+            }
+            self.client.publish(
+                self._app_sensor_config_topics[mediatype],
+                json.dumps(app_payload),
+                qos=1,
+                retain=True,
+            )
+
+        _LOGGER.info("Published grouped media_player and sensor discovery")
 
     def close(self):
         self.client.publish(self._group_config_topic, "", qos=1, retain=True)
         self.client.publish(self._source_config_topic, "", qos=1, retain=True)
+        for config_topic in self._app_sensor_config_topics.values():
+            self.client.publish(config_topic, "", qos=1, retain=True)
         self.client.loop_stop()
         self.client.disconnect()
 
