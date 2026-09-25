@@ -28,20 +28,20 @@ jobs:
           repository: zackwag/homebrew-tap
           token: ${{ secrets.TAP_TOKEN }}
 
-      - name: Update formula
+      - name: Update formulas
         run: |
-          # The formula has no separate `version` field (brew style flags it as
-          # redundant when it's inferable from the url), so the version lives only
-          # in the url's tag segment - rewrite that directly rather than a
-          # `version "..."` line, which no longer exists and would silently no-op.
           VERSION="${{ steps.version.outputs.version }}"
-          sed -i -E "s#(archive/refs/tags/v)[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)#\1${VERSION}\2#" Formula/media2mqtt.rb
-          sed -i '0,/^  sha256 ".*"/{s/^  sha256 ".*"/  sha256 "${{ steps.sha.outputs.sha256 }}"/}' Formula/media2mqtt.rb
+          SHA="${{ steps.sha.outputs.sha256 }}"
 
-          grep -q "v${VERSION}.tar.gz" Formula/media2mqtt.rb || {
-            echo "::error::url in Formula/media2mqtt.rb was not updated to v${VERSION}"
-            exit 1
-          }
+          for formula in Formula/media2mqtt.rb Formula/media2mqtt-coordinator.rb; do
+            sed -i -E "s#(archive/refs/tags/v)[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)#\1${VERSION}\2#" "$formula"
+            sed -i '0,/^  sha256 ".*"/{s/^  sha256 ".*"/  sha256 "'"$SHA"'"/}' "$formula"
+
+            grep -q "v${VERSION}.tar.gz" "$formula" || {
+              echo "::error::url in $formula was not updated to v${VERSION}"
+              exit 1
+            }
+          done
 
       - name: Open PR against homebrew-tap
         env:
@@ -49,7 +49,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/media2mqtt.rb
+          git add Formula/media2mqtt.rb Formula/media2mqtt-coordinator.rb
           git diff --cached --quiet && exit 0
 
           VERSION="${{ steps.version.outputs.version }}"
