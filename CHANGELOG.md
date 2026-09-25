@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/zackwag/media2mqtt/compare/v1.10.1...v1.11.0) (2026-09-25)
+
+
+### Features
+
+* add per-app sensors to the grouped coordinator ([#39](https://github.com/zackwag/media2mqtt/issues/39)) ([d959d79](https://github.com/zackwag/media2mqtt/commit/d959d796ddf0899489e897df11bf48ff4f4bcaca))
+
 ## [1.10.1](https://github.com/zackwag/media2mqtt/compare/v1.10.0...v1.10.1) (2026-09-25)
 
 
