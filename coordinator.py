@@ -31,7 +31,7 @@ import paho.mqtt.client as mqtt
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 _LOGGER = logging.getLogger("media2mqtt.coordinator")
 
-_STATE_FIELDS = ("state", "title", "artist", "duration", "position", "albumart", "mediatype")
+_STATE_FIELDS = ("state", "title", "artist", "duration", "position", "albumart", "mediatype", "vol")
 
 
 def _slugify(value: str) -> str:
@@ -59,6 +59,7 @@ class DeviceState:
         self.position: str = ""
         self.albumart: str = ""
         self.mediatype: str = ""
+        self.vol: str = ""
 
     @property
     def command_topics(self) -> dict[str, tuple[str, str]]:
@@ -70,6 +71,10 @@ class DeviceState:
             if topic:
                 cmds[action] = (topic, payload)
         return cmds
+
+    @property
+    def volume_topic(self) -> str | None:
+        return self.config.get("command_volume_topic")
 
 
 class Coordinator:
@@ -99,6 +104,7 @@ class Coordinator:
         self._group_object_id = f"{group_slug}_grouped"
         self._group_topic = f"{topic_prefix}/grouped"
         self._group_command_topic = f"{self._group_topic}/command"
+        self._group_volume_topic = f"{self._group_topic}/volume_set"
         self._group_config_topic = f"{discovery_prefix}/media_player/{self._group_object_id}/config"
         self._source_object_id = f"{group_slug}_source"
         self._source_state_topic = f"{topic_prefix}/grouped/source"
@@ -128,6 +134,7 @@ class Coordinator:
         discovery_topic = f"{self.discovery_prefix}/media_player/+/config"
         client.subscribe(discovery_topic, qos=1)
         client.subscribe(self._group_command_topic, qos=1)
+        client.subscribe(self._group_volume_topic, qos=1)
         for device in self._devices.values():
             self._subscribe_device_topics(device)
 
@@ -143,6 +150,8 @@ class Coordinator:
             self._handle_discovery(topic, payload)
         elif topic == self._group_command_topic:
             self._handle_command(payload)
+        elif topic == self._group_volume_topic:
+            self._handle_volume_command(payload)
         else:
             self._handle_state_update(topic, payload)
 
@@ -223,21 +232,36 @@ class Coordinator:
                 topic, cmd_payload = cmds[command]
                 self.client.publish(topic, cmd_payload, qos=1)
 
+    def _handle_volume_command(self, payload: str):
+        with self._lock:
+            if not self._active_device_id:
+                return
+            device = self._devices.get(self._active_device_id)
+            if not device:
+                return
+            topic = device.volume_topic
+            if topic:
+                self.client.publish(topic, payload.strip(), qos=1)
+
     def _update_grouped_state(self):
         active = self._active_device_id
-        if active and active in self._devices and self._devices[active].state == "playing":
+
+        playing = None
+        for did, dev in self._devices.items():
+            if dev.state == "playing":
+                playing = did
+                break
+
+        if playing:
+            active = playing
+        elif active and active in self._devices and self._devices[active].state == "paused":
             pass
         else:
             active = None
             for did, dev in self._devices.items():
-                if dev.state == "playing":
+                if dev.state == "paused":
                     active = did
                     break
-            if not active:
-                for did, dev in self._devices.items():
-                    if dev.state == "paused":
-                        active = did
-                        break
 
         prev_active = self._active_device_id
         self._active_device_id = active
@@ -251,6 +275,7 @@ class Coordinator:
             self.client.publish(f"{t}/mediatype", dev.mediatype, qos=1, retain=True)
             self.client.publish(f"{t}/duration", dev.duration, qos=1, retain=True)
             self.client.publish(f"{t}/position", dev.position, qos=1, retain=True)
+            self.client.publish(f"{t}/vol", dev.vol, qos=1, retain=True)
             if dev.albumart != self._last_albumart:
                 self._last_albumart = dev.albumart
                 self.client.publish(f"{t}/albumart", dev.albumart, qos=1, retain=True)
@@ -264,6 +289,7 @@ class Coordinator:
             self.client.publish(f"{t}/mediatype", "", qos=1, retain=True)
             self.client.publish(f"{t}/duration", "", qos=1, retain=True)
             self.client.publish(f"{t}/position", "", qos=1, retain=True)
+            self.client.publish(f"{t}/vol", "", qos=1, retain=True)
             if prev_active is not None:
                 self._last_albumart = ""
                 self.client.publish(f"{t}/albumart", "", qos=1, retain=True)
@@ -287,6 +313,7 @@ class Coordinator:
             "state_position_topic": f"{t}/position",
             "state_albumart_topic": f"{t}/albumart",
             "state_mediatype_topic": f"{t}/mediatype",
+            "state_volume_topic": f"{t}/vol",
             "command_play_topic": self._group_command_topic,
             "command_play_payload": "play",
             "command_pause_topic": self._group_command_topic,
@@ -295,6 +322,7 @@ class Coordinator:
             "command_next_payload": "next",
             "command_previous_topic": self._group_command_topic,
             "command_previous_payload": "previous",
+            "command_volume_topic": self._group_volume_topic,
         }
         self.client.publish(self._group_config_topic, json.dumps(payload), qos=1, retain=True)
 

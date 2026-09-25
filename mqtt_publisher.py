@@ -50,6 +50,8 @@ class MqttPublisher:
         self._command_topic: str | None = None
         self._command_handler: Callable[[str], None] | None = None
         self._command_queue: queue.Queue[str] | None = None
+        self._volume_topic: str | None = None
+        self._volume_handler: Callable[[str], None] | None = None
 
         self.client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2, client_id=f"media2mqtt_{_slugify(platform.node())}"
@@ -69,25 +71,29 @@ class MqttPublisher:
             self._connected = True
             if self._command_topic:
                 self.client.subscribe(self._command_topic, qos=1)
+            if self._volume_topic:
+                self.client.subscribe(self._volume_topic, qos=1)
         else:
             _LOGGER.warning("MQTT connection refused: %s", reason_code)
 
     def _on_message(self, client, userdata, msg):
-        if msg.topic != self._command_topic or self._command_queue is None:
-            return
         payload = msg.payload.decode("utf-8", errors="replace")
-        self._command_queue.put(payload)
+        if msg.topic == self._volume_topic and self._volume_handler:
+            self._command_queue.put(("volume", payload))
+            return
+        if msg.topic == self._command_topic and self._command_queue is not None:
+            self._command_queue.put(("command", payload))
 
     def _process_commands(self):
         while True:
-            payload = self._command_queue.get()
-            handler = self._command_handler
+            kind, payload = self._command_queue.get()
+            handler = self._volume_handler if kind == "volume" else self._command_handler
             if handler is None:
                 continue
             try:
                 handler(payload)
             except Exception:
-                _LOGGER.exception("Error handling command %r", payload)
+                _LOGGER.exception("Error handling %s %r", kind, payload)
 
     def _on_disconnect(self, client, userdata, flags, reason_code, properties=None):
         self._connected = False
@@ -159,6 +165,9 @@ class MqttPublisher:
     def command_topic(self, device_name: str) -> str:
         return f"{self.topic_prefix}/{_slugify(device_name)}/command"
 
+    def volume_command_topic(self, device_name: str) -> str:
+        return f"{self.topic_prefix}/{_slugify(device_name)}/volume"
+
     def publish_media_player_discovery(self, device_name: str) -> str:
         """Publish discovery for the "MQTT Media Player" HACS integration.
 
@@ -179,6 +188,7 @@ class MqttPublisher:
         object_id = f"{device_slug}_media_player"
         topic = f"{self.topic_prefix}/{object_id}"
         command_topic = self.command_topic(device_name)
+        vol_command_topic = self.volume_command_topic(device_name)
         config_topic = f"{self.discovery_prefix}/media_player/{object_id}/config"
         payload = {
             "name": device_name,
@@ -190,6 +200,7 @@ class MqttPublisher:
             "state_position_topic": f"{topic}/position",
             "state_albumart_topic": f"{topic}/albumart",
             "state_mediatype_topic": f"{topic}/mediatype",
+            "state_volume_topic": f"{topic}/vol",
             "command_play_topic": command_topic,
             "command_play_payload": "play",
             "command_pause_topic": command_topic,
@@ -198,6 +209,7 @@ class MqttPublisher:
             "command_next_payload": "next",
             "command_previous_topic": command_topic,
             "command_previous_payload": "previous",
+            "command_volume_topic": vol_command_topic,
         }
         self.client.publish(config_topic, json.dumps(payload), qos=1, retain=True)
         return object_id
@@ -212,6 +224,7 @@ class MqttPublisher:
         duration: str | float | None = None,
         position: str | float | None = None,
         albumart_b64: str | None = None,
+        volume: float | None = None,
     ) -> None:
         topic = f"{self.topic_prefix}/{object_id}"
         self.client.publish(f"{topic}/state", player_state, qos=1, retain=True)
@@ -222,6 +235,8 @@ class MqttPublisher:
         self.client.publish(f"{topic}/position", _as_int_str(position), qos=1, retain=True)
         if albumart_b64 is not None:
             self.client.publish(f"{topic}/albumart", albumart_b64, qos=1, retain=True)
+        if volume is not None:
+            self.client.publish(f"{topic}/vol", str(round(volume, 2)), qos=1, retain=True)
 
     def subscribe_commands(self, device_name: str, handler: Callable[[str], None]) -> str:
         """Subscribe to the device's command topic, invoking handler(payload) for each message.
@@ -233,6 +248,18 @@ class MqttPublisher:
         topic = self.command_topic(device_name)
         self._command_topic = topic
         self._command_handler = handler
+        if self._command_queue is None:
+            self._command_queue = queue.Queue()
+            threading.Thread(target=self._process_commands, daemon=True).start()
+        if self._connected:
+            self.client.subscribe(topic, qos=1)
+        return topic
+
+    def subscribe_volume(self, device_name: str, handler: Callable[[str], None]) -> str:
+        """Subscribe to the device's volume command topic."""
+        topic = self.volume_command_topic(device_name)
+        self._volume_topic = topic
+        self._volume_handler = handler
         if self._command_queue is None:
             self._command_queue = queue.Queue()
             threading.Thread(target=self._process_commands, daemon=True).start()
