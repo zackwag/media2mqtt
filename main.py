@@ -38,7 +38,7 @@ import time
 
 from media_apps import AVAILABLE_APPS, MediaState, find_nowplaying_cli, get_artwork_b64
 from mqtt_publisher import MqttPublisher
-from playback_control import PlaybackController
+from playback_control import PlaybackController, get_volume
 
 _TITLE_KEYS = {"music": "track", "podcasts": "episode"}
 _MEDIA_TYPES = {"music": "music", "podcasts": "podcast"}
@@ -98,12 +98,16 @@ def main() -> None:
         _LOGGER.warning("Playback control disabled: %s", exc)
     else:
         command_topic = publisher.subscribe_commands(device_name, controller.handle_command)
-        _LOGGER.info("Playback control enabled, listening on %s", command_topic)
+        volume_topic = publisher.subscribe_volume(device_name, controller.handle_volume_command)
+        _LOGGER.info(
+            "Playback control enabled, listening on %s and %s", command_topic, volume_topic
+        )
         media_player_id = publisher.publish_media_player_discovery(device_name)
         nowplaying_bin = find_nowplaying_cli()
 
     last_artwork_key: tuple[str, str] | None = None
     last_artwork_b64: str = ""
+    last_active_key: str | None = None
 
     _LOGGER.info("Polling %s every %ss", ", ".join(k for k, _ in apps), poll_interval)
     while True:
@@ -122,10 +126,23 @@ def main() -> None:
         active = next(
             ((k, name, s) for k, (name, s) in states.items() if s.player_state == "playing"),
             None,
-        ) or next(
-            ((k, name, s) for k, (name, s) in states.items() if s.player_state == "paused"),
-            None,
         )
+        if not active:
+            if (
+                last_active_key
+                and last_active_key in states
+                and states[last_active_key][1].player_state == "paused"
+            ):
+                name, s = states[last_active_key]
+                active = (last_active_key, name, s)
+            else:
+                active = next(
+                    ((k, name, s) for k, (name, s) in states.items() if s.player_state == "paused"),
+                    None,
+                )
+        if active:
+            last_active_key = active[0]
+        volume = get_volume() if media_player_id else None
         if active:
             key, source, state = active
             title = state.attributes.get(_TITLE_KEYS.get(key, "track"), "")
@@ -152,6 +169,7 @@ def main() -> None:
                     duration=state.attributes.get("duration"),
                     position=state.attributes.get("elapsed"),
                     albumart_b64=albumart_b64,
+                    volume=volume,
                 )
         else:
             publisher.publish_state(now_playing_id, "idle", False, {})
@@ -160,7 +178,10 @@ def main() -> None:
                 last_artwork_key = None
                 last_artwork_b64 = ""
                 publisher.publish_media_player_state(
-                    media_player_id, player_state="idle", albumart_b64=albumart_b64
+                    media_player_id,
+                    player_state="idle",
+                    albumart_b64=albumart_b64,
+                    volume=volume,
                 )
 
         time.sleep(poll_interval)
