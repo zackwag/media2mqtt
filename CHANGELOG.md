@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/zackwag/media2mqtt/compare/v1.10.0...v1.10.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* trigger release to sync coordinator homebrew formula ([#37](https://github.com/zackwag/media2mqtt/issues/37)) ([f48d6bb](https://github.com/zackwag/media2mqtt/commit/f48d6bb7ab7d140ea0fa6479b5ed533cdc378b03))
+
 ## [1.10.0](https://github.com/zackwag/media2mqtt/compare/v1.9.2...v1.10.0) (2026-09-25)
 
 
