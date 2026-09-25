@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/zackwag/media2mqtt/compare/v1.9.2...v1.10.0) (2026-09-25)
+
+
+### Features
+
+* add volume control and sticky source tracking ([#34](https://github.com/zackwag/media2mqtt/issues/34)) ([e204e99](https://github.com/zackwag/media2mqtt/commit/e204e99f782553230af8801a613706ee97418312))
+
 ## [1.9.2](https://github.com/zackwag/media2mqtt/compare/v1.9.1...v1.9.2) (2026-09-22)
 
 
