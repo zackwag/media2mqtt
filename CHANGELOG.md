@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.1](https://github.com/zackwag/media2mqtt/compare/v1.12.0...v1.12.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* handle Last.fm API errors sent with a non-2xx HTTP status ([#45](https://github.com/zackwag/media2mqtt/issues/45)) ([556c7dc](https://github.com/zackwag/media2mqtt/commit/556c7dce220977d1d1bfd96f09ac39a6ce0fbc1c))
+
 ## [1.12.0](https://github.com/zackwag/media2mqtt/compare/v1.11.1...v1.12.0) (2026-09-26)
 
 
