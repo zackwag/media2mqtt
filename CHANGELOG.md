@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/zackwag/media2mqtt/compare/v1.11.1...v1.12.0) (2026-09-26)
+
+
+### Features
+
+* add Last.fm scrobbling ([#41](https://github.com/zackwag/media2mqtt/issues/41)) ([70f4622](https://github.com/zackwag/media2mqtt/commit/70f46223ada729df56d8174f3c699b3cfe507f85))
+
 ## [1.11.1](https://github.com/zackwag/media2mqtt/compare/v1.11.0...v1.11.1) (2026-09-26)
 
 
