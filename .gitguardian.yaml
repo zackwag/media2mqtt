@@ -1,0 +1,7 @@
+version: 2
+secret:
+  ignored-matches:
+    - name: media2mqtt shared Last.fm API key (intentionally public app credential, not a user secret)
+      match: 8dc9a83c46f724ca6c38ac7b1e2a70ca
+    - name: media2mqtt shared Last.fm API secret (intentionally public app credential, not a user secret)
+      match: 49c3c9cc788535479e66453548e49b70
