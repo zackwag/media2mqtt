@@ -62,8 +62,17 @@ def _request(params: dict[str, str], api_secret: str, *, post: bool) -> dict:
         if post
         else urllib.request.Request(f"{_API_URL}?{encoded}")
     )
-    with urllib.request.urlopen(request, timeout=_TIMEOUT) as response:
-        body = json.loads(response.read())
+    try:
+        with urllib.request.urlopen(request, timeout=_TIMEOUT) as response:
+            body = json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        # Last.fm returns API errors (e.g. an unauthorized token) with a non-2xx
+        # status *and* a JSON error body, so read that instead of letting the
+        # HTTPError obscure the actual error code/message.
+        try:
+            body = json.loads(exc.read())
+        except json.JSONDecodeError:
+            raise exc from None
     if "error" in body:
         raise LastfmApiError(body["error"], body.get("message", ""))
     return body
