@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Publishes macOS media app (Music, Podcasts) playback state to Home Assistant via MQTT Discovery. Python, polls apps via `osascript`, publishes with `paho-mqtt`. Runs as a macOS launchd service.
+Publishes macOS media app (Music, Podcasts) playback state to Home Assistant via MQTT Discovery, and optionally scrobbles to Last.fm. Python, polls apps via `osascript`, publishes with `paho-mqtt`. Runs as a macOS launchd service.
 
 ## Setup
 
@@ -25,7 +25,7 @@ For persistent background operation on macOS: `./install.sh` (installs `com.medi
 pytest
 ```
 
-`test_media_apps.py` covers `media_apps.py` by mocking `osascript` calls. Note: this suite exists but is **not currently run in CI** — only `conventional-commits.yml` and `release.yml` run on this repo.
+`test_media_apps.py` covers `media_apps.py` by mocking `osascript` calls; `test_scrobbler.py` covers `scrobbler.py` by mocking `urllib` calls. Note: these suites exist but are **not currently run in CI** — only `conventional-commits.yml` and `release.yml` run on this repo.
 
 ## Repository structure
 
@@ -33,7 +33,10 @@ pytest
 - `media_apps.py` — macOS media app state via `osascript`
 - `mqtt_publisher.py` — MQTT Discovery publishing, command topic subscription
 - `playback_control.py` — executes `nowplaying-cli` playback commands
+- `scrobbler.py` — Last.fm API client and now-playing/scrobble threshold tracking
+- `lastfm_auth.py` — one-time manual script to obtain a Last.fm session key
 - `test_media_apps.py` — pytest suite for `media_apps.py`
+- `test_scrobbler.py` — pytest suite for `scrobbler.py`
 - `install.sh` / `uninstall.sh` / `com.media2mqtt.plist` — launchd service management
 
 ## Commit and PR conventions

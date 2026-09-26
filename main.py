@@ -26,6 +26,16 @@ Playback control:
   Core Home Assistant has no native MQTT discovery schema for media_player, so
   this requires that third-party integration to be installed, and only works
   when MQTT_DISCOVERY_PREFIX is left at its default "homeassistant".
+
+Last.fm scrobbling:
+  LASTFM_API_KEY            required to enable scrobbling
+  LASTFM_API_SECRET         required to enable scrobbling
+  LASTFM_SESSION_KEY        required to enable scrobbling (see lastfm_auth.py)
+
+  If all three are set, media2mqtt sends a now-playing update and scrobble to
+  Last.fm for the active track, per-app: only apps whose adapter sets
+  `scrobble = True` in media_apps.py participate (Music does; Podcasts
+  doesn't, since Last.fm scrobbles are for music tracks, not episodes).
 """
 
 from __future__ import annotations
@@ -39,6 +49,7 @@ import time
 from media_apps import AVAILABLE_APPS, MediaState, find_nowplaying_cli, get_artwork_b64
 from mqtt_publisher import MqttPublisher
 from playback_control import PlaybackController, get_volume
+from scrobbler import LastfmScrobbler, ScrobbleTracker
 
 _TITLE_KEYS = {"music": "track", "podcasts": "episode"}
 _MEDIA_TYPES = {"music": "music", "podcasts": "podcast"}
@@ -53,6 +64,15 @@ def _require_env(name: str) -> str:
         _LOGGER.error("Missing required environment variable: %s", name)
         sys.exit(1)
     return value
+
+
+def _parse_float(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
 
 
 def main() -> None:
@@ -75,6 +95,24 @@ def main() -> None:
             _LOGGER.error("Unknown app %r. Available: %s", key, ", ".join(AVAILABLE_APPS))
             sys.exit(1)
         apps.append((key, cls()))
+
+    scrobble_tracker: ScrobbleTracker | None = None
+    scrobble_app_keys: set[str] = set()
+    lastfm_api_key = os.environ.get("LASTFM_API_KEY")
+    lastfm_api_secret = os.environ.get("LASTFM_API_SECRET")
+    lastfm_session_key = os.environ.get("LASTFM_SESSION_KEY")
+    if lastfm_api_key and lastfm_api_secret and lastfm_session_key:
+        scrobbler = LastfmScrobbler(lastfm_api_key, lastfm_api_secret, lastfm_session_key)
+        scrobble_tracker = ScrobbleTracker(scrobbler)
+        scrobble_app_keys = {key for key, app in apps if app.scrobble}
+        _LOGGER.info(
+            "Last.fm scrobbling enabled for: %s", ", ".join(scrobble_app_keys) or "(no apps)"
+        )
+    elif lastfm_api_key or lastfm_api_secret or lastfm_session_key:
+        _LOGGER.warning(
+            "Last.fm scrobbling disabled: LASTFM_API_KEY, LASTFM_API_SECRET, and "
+            "LASTFM_SESSION_KEY must all be set"
+        )
 
     publisher = MqttPublisher(
         host=mqtt_host,
@@ -153,6 +191,18 @@ def main() -> None:
             if "elapsed" in state.attributes:
                 attrs["elapsed"] = state.attributes["elapsed"]
             publisher.publish_state(now_playing_id, state.player_state, state.is_playing, attrs)
+            if scrobble_tracker is not None:
+                if key in scrobble_app_keys:
+                    scrobble_tracker.update(
+                        artist=subtitle,
+                        track=title,
+                        album=state.attributes.get("album", ""),
+                        duration=_parse_float(state.attributes.get("duration")),
+                        elapsed=_parse_float(state.attributes.get("elapsed")),
+                        is_playing=state.is_playing,
+                    )
+                else:
+                    scrobble_tracker.clear()
             if media_player_id:
                 artwork_key = (title, subtitle)
                 albumart_b64: str | None = None
@@ -173,6 +223,8 @@ def main() -> None:
                 )
         else:
             publisher.publish_state(now_playing_id, "idle", False, {})
+            if scrobble_tracker is not None:
+                scrobble_tracker.clear()
             if media_player_id:
                 albumart_b64 = "" if last_artwork_key is not None else None
                 last_artwork_key = None
