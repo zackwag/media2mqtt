@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/zackwag/media2mqtt/compare/v1.11.0...v1.11.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* correct volume state topic key in grouped coordinator ([#42](https://github.com/zackwag/media2mqtt/issues/42)) ([3c81e41](https://github.com/zackwag/media2mqtt/commit/3c81e41b0e51604374c831cf87b5c8cbee183fed))
+
 ## [1.11.0](https://github.com/zackwag/media2mqtt/compare/v1.10.1...v1.11.0) (2026-09-25)
 
 
