@@ -96,6 +96,26 @@ Located at `/opt/homebrew/etc/media2mqtt/config` (Homebrew) or `~/.local/share/m
 | `DEVICE_NAME` | no | Mac hostname | Device name in Home Assistant |
 | `ENABLED_APPS` | no | `music` | Comma-separated: `music`, `podcasts` |
 | `POLL_INTERVAL_SECONDS` | no | `1` | Poll interval in seconds |
+| `LASTFM_API_KEY` | no | | Last.fm API key — set all three `LASTFM_*` vars to enable [scrobbling](#scrobbling) |
+| `LASTFM_API_SECRET` | no | | Last.fm API secret |
+| `LASTFM_SESSION_KEY` | no | | Last.fm session key (see [Scrobbling](#scrobbling) for how to get one) |
+
+## Scrobbling
+
+If `LASTFM_API_KEY`, `LASTFM_API_SECRET`, and `LASTFM_SESSION_KEY` are all set, media2mqtt sends a now-playing update to Last.fm as soon as a track starts, then scrobbles it once playback passes the halfway point or 4 minutes (whichever comes first) — the same threshold Last.fm's own clients use. Tracks under 30 seconds are never scrobbled.
+
+Scrobbling is per-app: only apps whose adapter opts in (`scrobble = True` in `media_apps.py`) participate. Music does; Podcasts doesn't, since Last.fm scrobbles are for music tracks (artist/track/album), not podcast episodes.
+
+### Getting a session key
+
+Last.fm's API needs a one-time authorization step to mint a session key — there's no username/password to put in config. Run this once, from the Mac (or anywhere with Python):
+
+1. Create an API account at https://www.last.fm/api/account/create to get an API key and secret.
+2. Run:
+   ```bash
+   python3 lastfm_auth.py <api_key> <api_secret>
+   ```
+3. It prints a URL. Open it on any device — the Mac itself, or your phone if media2mqtt runs headlessly — and approve access. Last.fm has no way to call back to a script, so the tool polls in the background until it sees the approval, then prints a `LASTFM_SESSION_KEY` to paste into your config alongside the key and secret.
 
 ## Adding a New App
 
@@ -105,6 +125,7 @@ Subclass `MediaApp` in `media_apps.py`:
 class MyApp(MediaApp):
     app_name = "My App"
     bundle_id = "com.example.myapp"
+    scrobble = False  # only relevant for music-like apps; defaults to True
 
     def poll(self) -> MediaState:
         if not self._app_is_running():
