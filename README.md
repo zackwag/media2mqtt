@@ -110,15 +110,17 @@ Scrobbling is configured per-Mac, alongside the rest of that Mac's config — it
 
 ### Getting a session key
 
-A Last.fm API key identifies the *application* (media2mqtt ships with its own, so you don't need to register one) — what's actually tied to your account is a session key, minted via a one-time browser approval. Run this once, from the Mac (or anywhere with Python):
+A Last.fm API key identifies the *application* (media2mqtt ships with its own, so you don't need to register one) — what's actually tied to your account is a session key, minted via a one-time browser approval. Run this once, from the Mac:
 
 ```bash
-python3 lastfm_auth.py
+lastfm_auth
 ```
+
+(If installed via Homebrew, `lastfm_auth` is already on your `PATH`. Running from a manual/source checkout instead, use `python3 lastfm_auth.py`.)
 
 It prints a URL. Open it on any device — the Mac itself, or your phone if media2mqtt runs headlessly — and approve access. Last.fm has no way to call back to a script, so the tool polls in the background until it sees the approval, then prints a `LASTFM_SESSION_KEY` to paste into your config.
 
-If you'd rather use your own Last.fm API app (e.g. for your own rate limit), create one at https://www.last.fm/api/account/create and run `python3 lastfm_auth.py <api_key> <api_secret>` instead, then also set `LASTFM_API_KEY`/`LASTFM_API_SECRET` in your config.
+If you'd rather use your own Last.fm API app (e.g. for your own rate limit), create one at https://www.last.fm/api/account/create and run `lastfm_auth <api_key> <api_secret>` instead, then also set `LASTFM_API_KEY`/`LASTFM_API_SECRET` in your config.
 
 ## Adding a New App
 
