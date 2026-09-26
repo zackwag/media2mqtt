@@ -21,6 +21,18 @@ _API_URL = "https://ws.audioscrobbler.com/2.0/"
 _AUTH_URL = "https://www.last.fm/api/auth/"
 _TIMEOUT = 10
 
+# Shared media2mqtt application credentials, registered at
+# https://www.last.fm/api/account/create. A Last.fm API key identifies the
+# *application*, not the end user - the per-user session key (obtained via
+# lastfm_auth.py, which requires the user to log in and approve access with
+# their own Last.fm account) is what actually authorizes scrobbles. Shipping
+# an application key/secret in the open is the standard pattern for
+# open-source scrobbler clients, so users don't need to register their own
+# Last.fm API account. Override with LASTFM_API_KEY/LASTFM_API_SECRET if you
+# want to use your own instead.
+DEFAULT_API_KEY = "8dc9a83c46f724ca6c38ac7b1e2a70ca"
+DEFAULT_API_SECRET = "49c3c9cc788535479e66453548e49b70"
+
 # https://www.last.fm/api/errorcodes
 ERROR_TOKEN_NOT_AUTHORIZED = 14
 
