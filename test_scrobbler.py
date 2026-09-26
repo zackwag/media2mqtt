@@ -75,7 +75,9 @@ class TestLastfmScrobbler:
 
     @patch("scrobbler.urllib.request.urlopen")
     def test_scrobble_api_error_returns_false(self, mock_urlopen):
-        mock_urlopen.return_value = _response({"error": 9, "message": "Invalid session key"}).__enter__()
+        mock_urlopen.return_value = _response(
+            {"error": 9, "message": "Invalid session key"}
+        ).__enter__()
         assert self.scrobbler.scrobble("Queen", "Bohemian Rhapsody", 1700000000) is False
 
     @patch("scrobbler.urllib.request.urlopen", side_effect=OSError("network unreachable"))
