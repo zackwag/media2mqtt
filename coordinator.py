@@ -31,7 +31,16 @@ import paho.mqtt.client as mqtt
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 _LOGGER = logging.getLogger("media2mqtt.coordinator")
 
-_STATE_FIELDS = ("state", "title", "artist", "duration", "position", "albumart", "mediatype", "vol")
+_STATE_FIELDS = (
+    "state",
+    "title",
+    "artist",
+    "duration",
+    "position",
+    "albumart",
+    "mediatype",
+    "volume",
+)
 
 _APP_SENSORS: dict[str, tuple[str, str]] = {
     "music": ("Music", "mdi:music"),
@@ -64,7 +73,7 @@ class DeviceState:
         self.position: str = ""
         self.albumart: str = ""
         self.mediatype: str = ""
-        self.vol: str = ""
+        self.volume: str = ""
 
     @property
     def command_topics(self) -> dict[str, tuple[str, str]]:
@@ -287,7 +296,7 @@ class Coordinator:
             self.client.publish(f"{t}/mediatype", dev.mediatype, qos=1, retain=True)
             self.client.publish(f"{t}/duration", dev.duration, qos=1, retain=True)
             self.client.publish(f"{t}/position", dev.position, qos=1, retain=True)
-            self.client.publish(f"{t}/vol", dev.vol, qos=1, retain=True)
+            self.client.publish(f"{t}/vol", dev.volume, qos=1, retain=True)
             if dev.albumart != self._last_albumart:
                 self._last_albumart = dev.albumart
                 self.client.publish(f"{t}/albumart", dev.albumart, qos=1, retain=True)
