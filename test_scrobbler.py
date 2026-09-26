@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import json
+import urllib.error
 from contextlib import contextmanager
 from unittest.mock import patch
 
@@ -32,6 +34,17 @@ def _response(body: dict):
     yield _FakeResponse()
 
 
+def _http_error(status: int, body: dict) -> urllib.error.HTTPError:
+    """Build an HTTPError carrying a JSON body, as Last.fm sends on API errors."""
+    return urllib.error.HTTPError(
+        url="https://ws.audioscrobbler.com/2.0/",
+        code=status,
+        msg="",
+        hdrs=None,
+        fp=io.BytesIO(json.dumps(body).encode("utf-8")),
+    )
+
+
 class TestAuthFlow:
     @patch("scrobbler.urllib.request.urlopen")
     def test_get_auth_token(self, mock_urlopen):
@@ -51,12 +64,29 @@ class TestAuthFlow:
 
     @patch("scrobbler.urllib.request.urlopen")
     def test_get_session_key_not_yet_authorized(self, mock_urlopen):
-        mock_urlopen.return_value = _response(
-            {"error": ERROR_TOKEN_NOT_AUTHORIZED, "message": "This token has not been authorized"}
-        ).__enter__()
+        # Last.fm sends this as a non-2xx HTTP status (403) with a JSON error
+        # body, not a 200 - urlopen() raises HTTPError before normal response
+        # handling runs, so this must be read from the error, not the response.
+        mock_urlopen.side_effect = _http_error(
+            403,
+            {"error": ERROR_TOKEN_NOT_AUTHORIZED, "message": "This token has not been authorized"},
+        )
         with pytest.raises(LastfmApiError) as exc_info:
             get_session_key("key", "secret", "tok123")
         assert exc_info.value.code == ERROR_TOKEN_NOT_AUTHORIZED
+
+    @patch("scrobbler.urllib.request.urlopen")
+    def test_get_session_key_http_error_without_json_body_propagates(self, mock_urlopen):
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            url="https://ws.audioscrobbler.com/2.0/",
+            code=502,
+            msg="Bad Gateway",
+            hdrs=None,
+            fp=io.BytesIO(b"<html>502 Bad Gateway</html>"),
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            get_session_key("key", "secret", "tok123")
+        assert exc_info.value.code == 502
 
 
 class TestLastfmScrobbler:
