@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.2](https://github.com/zackwag/media2mqtt/compare/v1.12.1...v1.12.2) (2026-09-29)
+
+
+### Bug Fixes
+
+* **install:** copy playback_control.py and scrobbler.py into the install dir ([#48](https://github.com/zackwag/media2mqtt/issues/48)) ([4550469](https://github.com/zackwag/media2mqtt/commit/4550469458957b30f98bb0eb94a1474387b66a49))
+
 ## [1.12.1](https://github.com/zackwag/media2mqtt/compare/v1.12.0...v1.12.1) (2026-09-26)
 
 
