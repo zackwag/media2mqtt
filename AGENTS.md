@@ -25,7 +25,16 @@ For persistent background operation on macOS: `./install.sh` (installs `com.medi
 pytest
 ```
 
-`test_media_apps.py` covers `media_apps.py` by mocking `osascript` calls. Note: this suite exists but is **not currently run in CI** — only `conventional-commits.yml` and `release.yml` run on this repo.
+`test_media_apps.py` covers `media_apps.py` by mocking `osascript` calls; `test_playback_control.py` covers `playback_control.py`. Note: these suites are **not currently run in CI** — CI runs `conventional-commits.yml`, `lint.yml` (ruff), `release-please.yml`, and `release.yml`.
+
+## Lint
+
+```sh
+ruff format --check .
+ruff check .
+```
+
+Both run in CI (`lint.yml`) on PRs and pushes to `main`. Config is in `ruff.toml` (line length 100).
 
 ## Repository structure
 
@@ -33,7 +42,8 @@ pytest
 - `media_apps.py` — macOS media app state via `osascript`
 - `mqtt_publisher.py` — MQTT Discovery publishing, command topic subscription
 - `playback_control.py` — executes `nowplaying-cli` playback commands
-- `test_media_apps.py` — pytest suite for `media_apps.py`
+- `coordinator.py` — standalone grouped `media_player` that aggregates multiple Macs (no macOS dependencies)
+- `test_media_apps.py` / `test_playback_control.py` — pytest suites
 - `install.sh` / `uninstall.sh` / `com.media2mqtt.plist` — launchd service management
 
 ## Commit and PR conventions
