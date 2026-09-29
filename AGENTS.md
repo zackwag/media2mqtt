@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Publishes macOS media app (Music, Podcasts) playback state to Home Assistant via MQTT Discovery. Python, polls apps via `osascript`, publishes with `paho-mqtt`. Runs as a macOS launchd service.
+Publishes macOS media app (Music, Podcasts) playback state to Home Assistant via MQTT Discovery, and optionally scrobbles to Last.fm. Python, polls apps via `osascript`, publishes with `paho-mqtt`. Runs as a macOS launchd service.
 
 ## Setup
 
@@ -25,7 +25,7 @@ For persistent background operation on macOS: `./install.sh` (installs `com.medi
 pytest
 ```
 
-`test_media_apps.py` covers `media_apps.py` by mocking `osascript` calls; `test_playback_control.py` covers `playback_control.py`. Note: these suites are **not currently run in CI** — CI runs `conventional-commits.yml`, `lint.yml` (ruff), `release-please.yml`, and `release.yml`.
+`test_media_apps.py` covers `media_apps.py` by mocking `osascript` calls; `test_playback_control.py` covers `playback_control.py`; `test_scrobbler.py` covers `scrobbler.py` by mocking `urllib` calls. Note: these suites are **not currently run in CI** — CI runs `conventional-commits.yml`, `lint.yml` (ruff), `release-please.yml`, and `release.yml`.
 
 ## Lint
 
@@ -42,8 +42,10 @@ Both run in CI (`lint.yml`) on PRs and pushes to `main`. Config is in `ruff.toml
 - `media_apps.py` — macOS media app state via `osascript`
 - `mqtt_publisher.py` — MQTT Discovery publishing, command topic subscription
 - `playback_control.py` — executes `nowplaying-cli` playback commands
+- `scrobbler.py` — Last.fm API client and now-playing/scrobble threshold tracking
+- `lastfm_auth.py` — one-time manual script to obtain a Last.fm session key
 - `coordinator.py` — standalone grouped `media_player` that aggregates multiple Macs (no macOS dependencies)
-- `test_media_apps.py` / `test_playback_control.py` — pytest suites
+- `test_media_apps.py` / `test_playback_control.py` / `test_scrobbler.py` — pytest suites
 - `install.sh` / `uninstall.sh` / `com.media2mqtt.plist` — launchd service management
 
 ## Commit and PR conventions

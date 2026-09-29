@@ -37,6 +37,7 @@ class MediaApp:
 
     app_name: str
     bundle_id: str
+    scrobble: bool = True
 
     def poll(self) -> MediaState:
         raise NotImplementedError
@@ -115,6 +116,7 @@ class PodcastsApp(MediaApp):
 
     app_name = "Podcasts"
     bundle_id = "com.apple.podcasts"
+    scrobble = False
 
     def __init__(self):
         self._nowplaying_bin = find_nowplaying_cli()

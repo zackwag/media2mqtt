@@ -33,6 +33,10 @@ Sensors (`sensor.*`) use core HA MQTT discovery and have none of these issues.
 
 paho's network loop runs on its own thread. `_on_message` only enqueues; commands and volume changes run one at a time on a worker thread (`_process_commands`) so a slow `nowplaying-cli` call can't stall keepalive. Keep handlers off the network thread.
 
+## Last.fm credentials
+
+`DEFAULT_API_KEY` / `DEFAULT_API_SECRET` in `scrobbler.py` are media2mqtt's shared Last.fm app credentials, committed on purpose and allowlisted in `.gitguardian.yaml` — don't "fix" them. A user's `LASTFM_SESSION_KEY` is a real per-account secret: never commit, log, or publish it to MQTT. Scrobbling is per-Mac only; the coordinator never scrobbles.
+
 ## Distribution and releases
 
 - Primary install path is Homebrew (`zackwag/tap/media2mqtt` and `media2mqtt-coordinator`), formulas live in the separate `zackwag/homebrew-tap` repo. `install.sh` is the manual launchd alternative and copies an explicit file list — add any new runtime module there.

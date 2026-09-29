@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.12.1](https://github.com/zackwag/media2mqtt/compare/v1.12.0...v1.12.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* handle Last.fm API errors sent with a non-2xx HTTP status ([#45](https://github.com/zackwag/media2mqtt/issues/45)) ([556c7dc](https://github.com/zackwag/media2mqtt/commit/556c7dce220977d1d1bfd96f09ac39a6ce0fbc1c))
+
+## [1.12.0](https://github.com/zackwag/media2mqtt/compare/v1.11.1...v1.12.0) (2026-09-26)
+
+
+### Features
+
+* add Last.fm scrobbling ([#41](https://github.com/zackwag/media2mqtt/issues/41)) ([70f4622](https://github.com/zackwag/media2mqtt/commit/70f46223ada729df56d8174f3c699b3cfe507f85))
+
+## [1.11.1](https://github.com/zackwag/media2mqtt/compare/v1.11.0...v1.11.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* correct volume state topic key in grouped coordinator ([#42](https://github.com/zackwag/media2mqtt/issues/42)) ([3c81e41](https://github.com/zackwag/media2mqtt/commit/3c81e41b0e51604374c831cf87b5c8cbee183fed))
+
+## [1.11.0](https://github.com/zackwag/media2mqtt/compare/v1.10.1...v1.11.0) (2026-09-25)
+
+
+### Features
+
+* add per-app sensors to the grouped coordinator ([#39](https://github.com/zackwag/media2mqtt/issues/39)) ([d959d79](https://github.com/zackwag/media2mqtt/commit/d959d796ddf0899489e897df11bf48ff4f4bcaca))
+
 ## [1.10.1](https://github.com/zackwag/media2mqtt/compare/v1.10.0...v1.10.1) (2026-09-25)
 
 
