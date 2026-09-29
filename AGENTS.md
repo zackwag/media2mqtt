@@ -25,7 +25,16 @@ For persistent background operation on macOS: `./install.sh` (installs `com.medi
 pytest
 ```
 
-`test_media_apps.py` covers `media_apps.py` by mocking `osascript` calls; `test_scrobbler.py` covers `scrobbler.py` by mocking `urllib` calls. Note: these suites exist but are **not currently run in CI** — only `conventional-commits.yml` and `release.yml` run on this repo.
+`test_media_apps.py` covers `media_apps.py` by mocking `osascript` calls; `test_playback_control.py` covers `playback_control.py`; `test_scrobbler.py` covers `scrobbler.py` by mocking `urllib` calls. Note: these suites are **not currently run in CI** — CI runs `conventional-commits.yml`, `lint.yml` (ruff), `release-please.yml`, and `release.yml`.
+
+## Lint
+
+```sh
+ruff format --check .
+ruff check .
+```
+
+Both run in CI (`lint.yml`) on PRs and pushes to `main`. Config is in `ruff.toml` (line length 100).
 
 ## Repository structure
 
@@ -35,8 +44,8 @@ pytest
 - `playback_control.py` — executes `nowplaying-cli` playback commands
 - `scrobbler.py` — Last.fm API client and now-playing/scrobble threshold tracking
 - `lastfm_auth.py` — one-time manual script to obtain a Last.fm session key
-- `test_media_apps.py` — pytest suite for `media_apps.py`
-- `test_scrobbler.py` — pytest suite for `scrobbler.py`
+- `coordinator.py` — standalone grouped `media_player` that aggregates multiple Macs (no macOS dependencies)
+- `test_media_apps.py` / `test_playback_control.py` / `test_scrobbler.py` — pytest suites
 - `install.sh` / `uninstall.sh` / `com.media2mqtt.plist` — launchd service management
 
 ## Commit and PR conventions
