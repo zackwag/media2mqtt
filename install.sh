@@ -10,7 +10,7 @@ ENV_FILE="$INSTALL_DIR/.env"
 echo "==> Installing media2mqtt to $INSTALL_DIR"
 
 mkdir -p "$INSTALL_DIR"
-cp "$SCRIPT_DIR"/main.py "$SCRIPT_DIR"/media_apps.py "$SCRIPT_DIR"/mqtt_publisher.py "$SCRIPT_DIR"/requirements.txt "$INSTALL_DIR/"
+cp "$SCRIPT_DIR"/main.py "$SCRIPT_DIR"/media_apps.py "$SCRIPT_DIR"/mqtt_publisher.py "$SCRIPT_DIR"/playback_control.py "$SCRIPT_DIR"/scrobbler.py "$SCRIPT_DIR"/requirements.txt "$INSTALL_DIR/"
 
 if [ ! -d "$INSTALL_DIR/venv" ]; then
     echo "==> Creating virtualenv"
