@@ -96,6 +96,31 @@ Located at `/opt/homebrew/etc/media2mqtt/config` (Homebrew) or `~/.local/share/m
 | `DEVICE_NAME` | no | Mac hostname | Device name in Home Assistant |
 | `ENABLED_APPS` | no | `music` | Comma-separated: `music`, `podcasts` |
 | `POLL_INTERVAL_SECONDS` | no | `1` | Poll interval in seconds |
+| `LASTFM_SESSION_KEY` | no | | Set to enable [scrobbling](#scrobbling) (see below for how to get one) |
+| `LASTFM_API_KEY` | no | media2mqtt's shared app key | Only needed if you want to use your own Last.fm API app instead |
+| `LASTFM_API_SECRET` | no | media2mqtt's shared app secret | Only needed alongside a custom `LASTFM_API_KEY` |
+
+## Scrobbling
+
+If `LASTFM_SESSION_KEY` is set, media2mqtt sends a now-playing update to Last.fm as soon as a track starts, then scrobbles it once playback passes the halfway point or 4 minutes (whichever comes first) — the same threshold Last.fm's own clients use. Tracks under 30 seconds are never scrobbled.
+
+Scrobbling is per-app: only apps whose adapter opts in (`scrobble = True` in `media_apps.py`) participate. Music does; Podcasts doesn't, since Last.fm scrobbles are for music tracks (artist/track/album), not podcast episodes.
+
+Scrobbling is configured per-Mac, alongside the rest of that Mac's config — it's not part of the [coordinator](#grouped-media_player-multi-mac). The coordinator only aggregates state that individual media2mqtt instances have already published to MQTT; it doesn't poll apps itself, so it has nothing to scrobble. If you run media2mqtt on multiple Macs under the same Last.fm account, set `LASTFM_SESSION_KEY` in each Mac's own config and each will scrobble its own local playback independently.
+
+### Getting a session key
+
+A Last.fm API key identifies the *application* (media2mqtt ships with its own, so you don't need to register one) — what's actually tied to your account is a session key, minted via a one-time browser approval. Run this once, from the Mac:
+
+```bash
+lastfm_auth
+```
+
+(If installed via Homebrew, `lastfm_auth` is already on your `PATH`. Running from a manual/source checkout instead, use `python3 lastfm_auth.py`.)
+
+It prints a URL. Open it on any device — the Mac itself, or your phone if media2mqtt runs headlessly — and approve access. Last.fm has no way to call back to a script, so the tool polls in the background until it sees the approval, then prints a `LASTFM_SESSION_KEY` to paste into your config.
+
+If you'd rather use your own Last.fm API app (e.g. for your own rate limit), create one at https://www.last.fm/api/account/create and run `lastfm_auth <api_key> <api_secret>` instead, then also set `LASTFM_API_KEY`/`LASTFM_API_SECRET` in your config.
 
 ## Adding a New App
 
@@ -105,6 +130,7 @@ Subclass `MediaApp` in `media_apps.py`:
 class MyApp(MediaApp):
     app_name = "My App"
     bundle_id = "com.example.myapp"
+    scrobble = False  # only relevant for music-like apps; defaults to True
 
     def poll(self) -> MediaState:
         if not self._app_is_running():
@@ -167,7 +193,7 @@ Replace `zacks_work_macbook` with your device's slug (see [Sensors](#sensors) ab
 
 If you run media2mqtt on multiple Macs, the coordinator aggregates all of them into a single `media_player` entity with album art and transport controls. It auto-discovers devices via retained MQTT discovery messages — no manual device list needed.
 
-The coordinator has no macOS dependencies and can run on any machine with MQTT access (including the HA host itself).
+The coordinator has no macOS dependencies and can run on any machine with MQTT access (including the HA host itself). It only aggregates state already published by individual media2mqtt instances — it doesn't poll apps itself, so [scrobbling](#scrobbling) isn't something it does; that's configured per-Mac.
 
 ```bash
 python3 coordinator.py
