@@ -8,9 +8,9 @@ Things that aren't obvious from reading a single file. `AGENTS.md` above covers 
 
 Run `ruff format . && ruff check . && pytest`. Ruff is enforced in CI; pytest is not, so it's on you.
 
-## Entity identity is derived from `DEVICE_NAME`
+## Entity identity is the device ID, never a name
 
-Every discovery object ID, `unique_id`, device identifier (`media2mqtt_<slug>`), and state/command topic is built from `_slugify(DEVICE_NAME)` (defaults to the Mac's hostname). Changing the slug scheme or topic layout orphans existing Home Assistant entities and creates new ones — treat it as a breaking change. All discovery and state messages are published `retain=True`, `qos=1`; discovery must stay retained because both HA and the coordinator rely on replaying it.
+Every discovery object ID, `unique_id`, device identifier (`media2mqtt_<device_id>`), and state/command topic is keyed on `device_id`: the first 12 hex chars of `sha256(IOPlatformUUID)` (`get_device_id()` in `mqtt_publisher.py`). `DEVICE_NAME` only sets the device's display name, so it can change freely. The coordinator's entities use the fixed ID `media2mqtt`; `GROUP_DEVICE_NAME` is display-only too. Don't derive anything from a name, and don't add a name-based fallback: if the UUID can't be read, media2mqtt exits instead of silently creating duplicate entities. Changing the ID scheme or topic layout orphans every existing HA entity, so treat it as a breaking change. All discovery and state messages are published `retain=True`, `qos=1`; discovery must stay retained because both HA and the coordinator rely on replaying it.
 
 ## Entity names must not include the device name
 
@@ -32,7 +32,7 @@ Sensors (`sensor.*`) use core HA MQTT discovery and have none of these issues.
 
 `coordinator.py` finds devices by subscribing to `<discovery_prefix>/media_player/+/config` and keeping any payload whose `device.identifiers` starts with `media2mqtt_`. It then reads the `state_*_topic` / `command_*_topic` keys from that payload to route state and commands. Renaming those keys in `mqtt_publisher.py` breaks the coordinator.
 
-`coordinator.py` is intentionally self-contained (only depends on `paho-mqtt`, duplicates `_slugify`) because it ships as a separate Homebrew formula and runs on non-Mac hosts. Don't import from the other modules.
+`coordinator.py` is intentionally self-contained (only depends on `paho-mqtt`) because it ships as a separate Homebrew formula and runs on non-Mac hosts. Don't import from the other modules.
 
 ## Threading
 
