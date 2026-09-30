@@ -12,6 +12,10 @@ Run `ruff format . && ruff check . && pytest`. Ruff is enforced in CI; pytest is
 
 Every discovery object ID, `unique_id`, device identifier (`media2mqtt_<slug>`), and state/command topic is built from `_slugify(DEVICE_NAME)` (defaults to the Mac's hostname). Changing the slug scheme or topic layout orphans existing Home Assistant entities and creates new ones — treat it as a breaking change. All discovery and state messages are published `retain=True`, `qos=1`; discovery must stay retained because both HA and the coordinator rely on replaying it.
 
+## Entity names must not include the device name
+
+Discovery entity names are short (`Music`, `Now Playing`) and the media_player has no `name`. HA composes display names and "Recreate entity IDs" results from device name + entity name, so baking `DEVICE_NAME` into entity names leaves the old name behind when a device is renamed in HA's UI.
+
 ## The `media_player` entity is not core Home Assistant
 
 Core HA MQTT has no `media_player` discovery schema. `publish_media_player_discovery` targets the third-party HACS integration [bkbilly/mqtt_media_player](https://github.com/bkbilly/mqtt_media_player), which has its own quirks:
