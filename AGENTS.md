@@ -25,7 +25,7 @@ For persistent background operation on macOS: `./install.sh` (installs `com.medi
 pytest
 ```
 
-`test_media_apps.py` covers `media_apps.py` by mocking `osascript` calls; `test_playback_control.py` covers `playback_control.py`; `test_scrobbler.py` covers `scrobbler.py` by mocking `urllib` calls. Note: these suites are **not currently run in CI** — CI runs `conventional-commits.yml`, `lint.yml` (ruff), `release-please.yml`, and `release.yml`.
+`test_media_apps.py` covers `media_apps.py` by mocking `osascript` calls; `test_playback_control.py` covers `playback_control.py`; `test_scrobbler.py` covers `scrobbler.py` by mocking `urllib` calls; `test_mqtt_publisher.py` and `test_coordinator.py` cover discovery payloads by mocking the paho client. Note: these suites are **not currently run in CI** — CI runs `conventional-commits.yml`, `lint.yml` (ruff), `release-please.yml`, and `release.yml`.
 
 ## Lint
 
@@ -45,7 +45,7 @@ Both run in CI (`lint.yml`) on PRs and pushes to `main`. Config is in `ruff.toml
 - `scrobbler.py` — Last.fm API client and now-playing/scrobble threshold tracking
 - `lastfm_auth.py` — one-time manual script to obtain a Last.fm session key
 - `coordinator.py` — standalone grouped `media_player` that aggregates multiple Macs (no macOS dependencies)
-- `test_media_apps.py` / `test_playback_control.py` / `test_scrobbler.py` — pytest suites
+- `test_media_apps.py` / `test_playback_control.py` / `test_scrobbler.py` / `test_mqtt_publisher.py` / `test_coordinator.py` — pytest suites
 - `install.sh` / `uninstall.sh` / `com.media2mqtt.plist` — launchd service management
 
 ## Commit and PR conventions
