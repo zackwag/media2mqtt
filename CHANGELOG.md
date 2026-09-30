@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.3](https://github.com/zackwag/media2mqtt/compare/v1.12.2...v1.12.3) (2026-09-30)
+
+
+### Bug Fixes
+
+* stop embedding the device name in entity names ([#50](https://github.com/zackwag/media2mqtt/issues/50)) ([a11b063](https://github.com/zackwag/media2mqtt/commit/a11b0639f9f8539d08ebf4c020c067d2f1e358b8))
+
 ## [1.12.2](https://github.com/zackwag/media2mqtt/compare/v1.12.1...v1.12.2) (2026-09-29)
 
 
