@@ -90,6 +90,17 @@ class DeviceState:
     def volume_topic(self) -> str | None:
         return self.config.get("command_volume_topic")
 
+    @property
+    def display_name(self) -> str:
+        """The Mac's DEVICE_NAME, from the device block.
+
+        media_player discovery no longer carries an entity "name" (media2mqtt
+        <= 1.12 sent one), so the device block is the reliable source.
+        """
+        return (
+            self.config.get("device", {}).get("name") or self.config.get("name") or self.device_id
+        )
+
 
 class Coordinator:
     def __init__(
@@ -211,7 +222,9 @@ class Coordinator:
             self._devices[device_id] = DeviceState(device_id, config)
             self._register_device_topics(device_id, config)
             if is_new:
-                _LOGGER.info("Discovered device: %s (%s)", device_id, config.get("name", "?"))
+                _LOGGER.info(
+                    "Discovered device: %s (%s)", device_id, self._devices[device_id].display_name
+                )
                 self._subscribe_device_topics(self._devices[device_id])
 
     def _register_device_topics(self, device_id: str, config: dict):
@@ -301,8 +314,7 @@ class Coordinator:
                 self._last_albumart = dev.albumart
                 self.client.publish(f"{t}/albumart", dev.albumart, qos=1, retain=True)
             if active != prev_active:
-                source_name = dev.config.get("name", dev.device_id)
-                self.client.publish(self._source_state_topic, source_name, qos=1, retain=True)
+                self.client.publish(self._source_state_topic, dev.display_name, qos=1, retain=True)
             for mediatype, state_topic in self._app_sensor_topics.items():
                 app_state = dev.state if dev.mediatype == mediatype else "idle"
                 self.client.publish(state_topic, app_state, qos=1, retain=True)

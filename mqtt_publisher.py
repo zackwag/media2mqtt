@@ -141,15 +141,13 @@ class MqttPublisher:
         device_slug = _slugify(device_name)
         object_id = f"{device_slug}_{app_key}"
         icon = "mdi:music" if app_key == "music" else "mdi:podcast"
-        return self._publish_sensor_discovery(
-            object_id, f"{device_name} {app_name}", icon, device_name
-        )
+        return self._publish_sensor_discovery(object_id, app_name, icon, device_name)
 
     def publish_now_playing_discovery(self, device_name: str) -> str:
         device_slug = _slugify(device_name)
         object_id = f"{device_slug}_now_playing"
         return self._publish_sensor_discovery(
-            object_id, f"{device_name} Now Playing", "mdi:play-circle", device_name
+            object_id, "Now Playing", "mdi:play-circle", device_name
         )
 
     def publish_state(
@@ -183,6 +181,10 @@ class MqttPublisher:
         that device's page instead of creating a separate one, and repoints all
         of its command topics at the existing playback command topic/payloads so
         playback_control.py needs no changes.
+
+        The payload deliberately has no "name": the entity then takes its
+        device's name, so renaming the device in Home Assistant's UI renames
+        this entity too instead of leaving DEVICE_NAME baked into it.
         """
         device_slug = _slugify(device_name)
         object_id = f"{device_slug}_media_player"
@@ -191,7 +193,6 @@ class MqttPublisher:
         vol_command_topic = self.volume_command_topic(device_name)
         config_topic = f"{self.discovery_prefix}/media_player/{object_id}/config"
         payload = {
-            "name": device_name,
             "device": self._device_block(device_name),
             "state_state_topic": f"{topic}/state",
             "state_title_topic": f"{topic}/title",
