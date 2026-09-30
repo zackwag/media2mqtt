@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/zackwag/media2mqtt/compare/v1.12.3...v2.0.0) (2026-09-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* release 2.0.0 ([#56](https://github.com/zackwag/media2mqtt/issues/56))
+
+### Miscellaneous Chores
+
+* release 2.0.0 ([#56](https://github.com/zackwag/media2mqtt/issues/56)) ([ecfcbc1](https://github.com/zackwag/media2mqtt/commit/ecfcbc1f810420639e7c8d9db2c6eef3614bf2ac))
+
 ## [1.12.3](https://github.com/zackwag/media2mqtt/compare/v1.12.2...v1.12.3) (2026-09-30)
 
 
