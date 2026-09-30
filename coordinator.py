@@ -14,7 +14,8 @@ Env vars:
   MQTT_DISCOVERY_PREFIX     optional, default "homeassistant"
   MQTT_TOPIC_PREFIX         optional, default "media2mqtt"
   GROUP_NAME                optional, default "Now Playing"
-  GROUP_DEVICE_NAME         optional, default "media2mqtt"
+  GROUP_DEVICE_NAME         optional, default "media2mqtt". Display-only: entities
+                            are keyed on the fixed ID "media2mqtt".
 """
 
 from __future__ import annotations
@@ -48,8 +49,9 @@ _APP_SENSORS: dict[str, tuple[str, str]] = {
 }
 
 
-def _slugify(value: str) -> str:
-    return "".join(c if c.isalnum() else "_" for c in value).strip("_").lower()
+# There is one coordinator per broker, so its entities are keyed on a fixed ID
+# and GROUP_DEVICE_NAME stays display-only.
+_GROUP_ID = "media2mqtt"
 
 
 def _require_env(name: str) -> str:
@@ -92,14 +94,8 @@ class DeviceState:
 
     @property
     def display_name(self) -> str:
-        """The Mac's DEVICE_NAME, from the device block.
-
-        media_player discovery no longer carries an entity "name" (media2mqtt
-        <= 1.12 sent one), so the device block is the reliable source.
-        """
-        return (
-            self.config.get("device", {}).get("name") or self.config.get("name") or self.device_id
-        )
+        """The Mac's DEVICE_NAME, from the discovery config's device block."""
+        return self.config.get("device", {}).get("name") or self.device_id
 
 
 class Coordinator:
@@ -125,25 +121,24 @@ class Coordinator:
         self._last_albumart: str = ""
         self._lock = threading.Lock()
 
-        group_slug = _slugify(group_device_name)
-        self._group_object_id = f"{group_slug}_grouped"
+        self._group_object_id = f"{_GROUP_ID}_grouped"
         self._group_topic = f"{topic_prefix}/grouped"
         self._group_command_topic = f"{self._group_topic}/command"
         self._group_volume_topic = f"{self._group_topic}/volume_set"
         self._group_config_topic = f"{discovery_prefix}/media_player/{self._group_object_id}/config"
-        self._source_object_id = f"{group_slug}_source"
+        self._source_object_id = f"{_GROUP_ID}_source"
         self._source_state_topic = f"{topic_prefix}/grouped/source"
         self._source_config_topic = f"{discovery_prefix}/sensor/{self._source_object_id}/config"
 
         self._app_sensor_topics: dict[str, str] = {}
         self._app_sensor_config_topics: dict[str, str] = {}
         for mediatype in _APP_SENSORS:
-            obj_id = f"{group_slug}_{mediatype}"
+            obj_id = f"{_GROUP_ID}_{mediatype}"
             self._app_sensor_topics[mediatype] = f"{topic_prefix}/grouped/{mediatype}"
             self._app_sensor_config_topics[mediatype] = f"{discovery_prefix}/sensor/{obj_id}/config"
 
         self.client = mqtt.Client(
-            mqtt.CallbackAPIVersion.VERSION2, client_id=f"media2mqtt_coordinator_{group_slug}"
+            mqtt.CallbackAPIVersion.VERSION2, client_id="media2mqtt_coordinator"
         )
         if username:
             self.client.username_pw_set(username, password)
@@ -366,7 +361,6 @@ class Coordinator:
 
         source_payload = {
             "name": f"{self.group_name} Source",
-            "object_id": self._source_object_id,
             "unique_id": self._source_object_id,
             "state_topic": self._source_state_topic,
             "icon": "mdi:desktop-mac",
@@ -376,12 +370,10 @@ class Coordinator:
             self._source_config_topic, json.dumps(source_payload), qos=1, retain=True
         )
 
-        group_slug = _slugify(self.group_device_name)
         for mediatype, (name, icon) in _APP_SENSORS.items():
-            obj_id = f"{group_slug}_{mediatype}"
+            obj_id = f"{_GROUP_ID}_{mediatype}"
             app_payload = {
                 "name": name,
-                "object_id": obj_id,
                 "unique_id": obj_id,
                 "state_topic": self._app_sensor_topics[mediatype],
                 "icon": icon,

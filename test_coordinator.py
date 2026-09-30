@@ -39,11 +39,38 @@ class TestSourceName:
     def test_source_uses_device_name_when_entity_has_no_name(self):
         assert self._play(_media_player_config()) == "Office Mac Mini"
 
-    def test_source_prefers_device_name_over_legacy_entity_name(self):
-        # media2mqtt <= 1.12 also sent the device name as the entity name
-        assert self._play(_media_player_config(name="Old Entity Name")) == "Office Mac Mini"
-
     def test_source_falls_back_to_device_id(self):
         config = _media_player_config()
         del config["device"]["name"]
         assert self._play(config) == "office_mac_mini_media_media_player"
+
+
+def _coordinator(group_device_name: str = "media2mqtt") -> Coordinator:
+    with patch("coordinator.mqtt.Client"):
+        return Coordinator(
+            "broker",
+            1883,
+            None,
+            None,
+            "homeassistant",
+            "media2mqtt",
+            "Now Playing",
+            group_device_name,
+        )
+
+
+def _published(coordinator: Coordinator) -> dict[str, str]:
+    return {call.args[0]: call.args[1] for call in coordinator.client.publish.call_args_list}
+
+
+class TestFixedGroupIdentity:
+    def test_group_device_name_is_display_only(self):
+        coordinator = _coordinator("Office Grouped Media")
+        coordinator.publish_discovery()
+        published = _published(coordinator)
+        grouped = json.loads(published["homeassistant/media_player/media2mqtt_grouped/config"])
+        assert grouped["device"]["name"] == "Office Grouped Media"
+        assert grouped["device"]["identifiers"] == ["media2mqtt_media2mqtt_grouped"]
+        source = json.loads(published["homeassistant/sensor/media2mqtt_source/config"])
+        assert source["unique_id"] == "media2mqtt_source"
+        assert "office_grouped" not in json.dumps(list(published)).lower()
