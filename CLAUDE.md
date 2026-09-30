@@ -19,7 +19,8 @@ Core HA MQTT has no `media_player` discovery schema. `publish_media_player_disco
 - It listens on a hardcoded `homeassistant/media_player/#`, so the entity only appears when `MQTT_DISCOVERY_PREFIX` is the default.
 - It ignores any `unique_id` in the payload; the entity's unique ID is the topic segment before `/config` (our `object_id`).
 - It parses duration/position with `int()`, hence `_as_int_str` — don't send raw fractional seconds.
-- Renaming one of its entity IDs in HA stops the entity updating until the integration entry is reloaded. This is an upstream bug (fix proposed in bkbilly/mqtt_media_player#7), not a media2mqtt bug.
+- Renaming one of its entity IDs in HA stops the entity updating until HA restarts. This is an upstream bug (fix proposed in bkbilly/mqtt_media_player#7), not a media2mqtt bug.
+- Reloading its config entry clears our retained discovery config (its `async_unload_entry` publishes an empty payload, meant for entry deletion), and media2mqtt only publishes discovery at startup. After a reload, restart media2mqtt. Don't suggest reload as a workaround. Also fixed in bkbilly/mqtt_media_player#7.
 
 Sensors (`sensor.*`) use core HA MQTT discovery and have none of these issues.
 
