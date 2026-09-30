@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
-import platform
 import queue
 import subprocess
 import threading
@@ -32,6 +32,30 @@ def _get_mac_model() -> str:
     return "Mac"
 
 
+def get_device_id() -> str:
+    """Return this Mac's stable ID: a short hash of its hardware UUID.
+
+    Every unique ID, discovery topic and state/command topic is keyed on this, so
+    DEVICE_NAME is display-only and can change freely. Hashed so the raw hardware
+    identifier never ends up in MQTT or Home Assistant.
+    """
+    try:
+        result = subprocess.run(
+            ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RuntimeError(f"Could not run ioreg to read the hardware UUID: {exc}") from exc
+    for line in result.stdout.splitlines():
+        if '"IOPlatformUUID"' in line:
+            uuid = line.split("=", 1)[1].strip().strip('"')
+            return hashlib.sha256(uuid.encode()).hexdigest()[:12]
+    raise RuntimeError("ioreg output has no IOPlatformUUID")
+
+
 class MqttPublisher:
     def __init__(
         self,
@@ -41,11 +65,15 @@ class MqttPublisher:
         password: str | None,
         discovery_prefix: str,
         topic_prefix: str,
+        device_id: str,
+        device_name: str,
     ):
         self.host = host
         self.port = port
         self.discovery_prefix = discovery_prefix
         self.topic_prefix = topic_prefix
+        self.device_id = device_id
+        self.device_name = device_name
         self._connected = False
         self._command_topic: str | None = None
         self._command_handler: Callable[[str], None] | None = None
@@ -54,7 +82,7 @@ class MqttPublisher:
         self._volume_handler: Callable[[str], None] | None = None
 
         self.client = mqtt.Client(
-            mqtt.CallbackAPIVersion.VERSION2, client_id=f"media2mqtt_{_slugify(platform.node())}"
+            mqtt.CallbackAPIVersion.VERSION2, client_id=f"media2mqtt_{device_id}"
         )
         if username:
             self.client.username_pw_set(username, password)
@@ -110,45 +138,34 @@ class MqttPublisher:
             )
             self.client.loop_start()
 
-    def _device_block(self, device_name: str) -> dict:
-        device_slug = _slugify(device_name)
+    def _device_block(self) -> dict:
         return {
-            "identifiers": [f"media2mqtt_{device_slug}"],
-            "name": device_name,
+            "identifiers": [f"media2mqtt_{self.device_id}"],
+            "name": self.device_name,
             "manufacturer": "Apple",
             "model": self._mac_model,
         }
 
-    def _publish_sensor_discovery(
-        self, object_id: str, name: str, icon: str, device_name: str
-    ) -> str:
-        state_topic = f"{self.topic_prefix}/{object_id}/state"
-        attrs_topic = f"{self.topic_prefix}/{object_id}/attributes"
-        config_topic = f"{self.discovery_prefix}/sensor/{object_id}/config"
+    def _publish_sensor_discovery(self, key: str, name: str, icon: str) -> str:
+        object_id = f"{self.device_id}_{key}"
         payload = {
             "name": name,
-            "object_id": object_id,
             "unique_id": object_id,
-            "state_topic": state_topic,
-            "json_attributes_topic": attrs_topic,
+            "state_topic": f"{self.topic_prefix}/{object_id}/state",
+            "json_attributes_topic": f"{self.topic_prefix}/{object_id}/attributes",
             "icon": icon,
-            "device": self._device_block(device_name),
+            "device": self._device_block(),
         }
+        config_topic = f"{self.discovery_prefix}/sensor/{object_id}/config"
         self.client.publish(config_topic, json.dumps(payload), qos=1, retain=True)
         return object_id
 
-    def publish_discovery(self, app_key: str, app_name: str, device_name: str) -> str:
-        device_slug = _slugify(device_name)
-        object_id = f"{device_slug}_{app_key}"
+    def publish_discovery(self, app_key: str, app_name: str) -> str:
         icon = "mdi:music" if app_key == "music" else "mdi:podcast"
-        return self._publish_sensor_discovery(object_id, app_name, icon, device_name)
+        return self._publish_sensor_discovery(app_key, app_name, icon)
 
-    def publish_now_playing_discovery(self, device_name: str) -> str:
-        device_slug = _slugify(device_name)
-        object_id = f"{device_slug}_now_playing"
-        return self._publish_sensor_discovery(
-            object_id, "Now Playing", "mdi:play-circle", device_name
-        )
+    def publish_now_playing_discovery(self) -> str:
+        return self._publish_sensor_discovery("now_playing", "Now Playing", "mdi:play-circle")
 
     def publish_state(
         self, object_id: str, player_state: str, is_playing: bool, attributes: dict
@@ -160,13 +177,13 @@ class MqttPublisher:
             attrs_topic, json.dumps({**attributes, "is_playing": is_playing}), qos=1, retain=True
         )
 
-    def command_topic(self, device_name: str) -> str:
-        return f"{self.topic_prefix}/{_slugify(device_name)}/command"
+    def command_topic(self) -> str:
+        return f"{self.topic_prefix}/{self.device_id}/command"
 
-    def volume_command_topic(self, device_name: str) -> str:
-        return f"{self.topic_prefix}/{_slugify(device_name)}/volume"
+    def volume_command_topic(self) -> str:
+        return f"{self.topic_prefix}/{self.device_id}/volume"
 
-    def publish_media_player_discovery(self, device_name: str) -> str:
+    def publish_media_player_discovery(self) -> str:
         """Publish discovery for the "MQTT Media Player" HACS integration.
 
         Core Home Assistant's MQTT integration has no discovery schema for
@@ -185,15 +202,17 @@ class MqttPublisher:
         The payload deliberately has no "name": the entity then takes its
         device's name, so renaming the device in Home Assistant's UI renames
         this entity too instead of leaving DEVICE_NAME baked into it.
+
+        The integration takes the entity's unique ID from the discovery topic's
+        object ID, so that is keyed on device_id like everything else.
         """
-        device_slug = _slugify(device_name)
-        object_id = f"{device_slug}_media_player"
+        object_id = f"{self.device_id}_media_player"
         topic = f"{self.topic_prefix}/{object_id}"
-        command_topic = self.command_topic(device_name)
-        vol_command_topic = self.volume_command_topic(device_name)
+        command_topic = self.command_topic()
+        vol_command_topic = self.volume_command_topic()
         config_topic = f"{self.discovery_prefix}/media_player/{object_id}/config"
         payload = {
-            "device": self._device_block(device_name),
+            "device": self._device_block(),
             "state_state_topic": f"{topic}/state",
             "state_title_topic": f"{topic}/title",
             "state_artist_topic": f"{topic}/artist",
@@ -239,14 +258,14 @@ class MqttPublisher:
         if volume is not None:
             self.client.publish(f"{topic}/vol", str(round(volume, 2)), qos=1, retain=True)
 
-    def subscribe_commands(self, device_name: str, handler: Callable[[str], None]) -> str:
+    def subscribe_commands(self, handler: Callable[[str], None]) -> str:
         """Subscribe to the device's command topic, invoking handler(payload) for each message.
 
         Commands run on a dedicated worker thread, one at a time, so a slow or hung
         handler can't block the MQTT network loop (and thus keepalive/publishing).
         Resubscribes automatically after reconnects.
         """
-        topic = self.command_topic(device_name)
+        topic = self.command_topic()
         self._command_topic = topic
         self._command_handler = handler
         if self._command_queue is None:
@@ -256,9 +275,9 @@ class MqttPublisher:
             self.client.subscribe(topic, qos=1)
         return topic
 
-    def subscribe_volume(self, device_name: str, handler: Callable[[str], None]) -> str:
+    def subscribe_volume(self, handler: Callable[[str], None]) -> str:
         """Subscribe to the device's volume command topic."""
-        topic = self.volume_command_topic(device_name)
+        topic = self.volume_command_topic()
         self._volume_topic = topic
         self._volume_handler = handler
         if self._command_queue is None:
@@ -271,10 +290,6 @@ class MqttPublisher:
     def close(self):
         self.client.loop_stop()
         self.client.disconnect()
-
-
-def _slugify(value: str) -> str:
-    return "".join(c if c.isalnum() else "_" for c in value).strip("_").lower()
 
 
 def _as_int_str(value: str | float | None) -> str:

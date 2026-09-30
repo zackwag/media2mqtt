@@ -14,6 +14,12 @@ Each enabled app gets a `sensor` entity under a shared device in Home Assistant.
 
 For example, with `DEVICE_NAME=Zack's Work MacBook`, the entity ID would be `sensor.zacks_work_macbook_music`.
 
+`DEVICE_NAME` is display-only. Unique IDs and MQTT topics are keyed on the Mac's **device ID**, a 12-character hash of its hardware UUID, so you can rename the device (in the config or in Home Assistant's UI) without HA creating new entities. media2mqtt logs it at startup (`Device ID: …`), or you can print it yourself:
+
+```bash
+printf %s "$(ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformUUID/{print $4}')" | shasum -a 256 | cut -c1-12
+```
+
 `idle` means the app isn't running (or, for `now_playing`, that nothing is playing or paused). `is_playing` is a boolean for easy automations.
 
 ## Playback control
@@ -21,7 +27,7 @@ For example, with `DEVICE_NAME=Zack's Work MacBook`, the entity ID would be `sen
 If [`nowplaying-cli`](https://github.com/kirtan-shah/nowplaying-cli) is installed, media2mqtt subscribes to a command topic and forwards commands to it:
 
 ```
-media2mqtt/{device_name}/command
+media2mqtt/{device_id}/command
 ```
 
 Publish one of these payloads to control playback (works regardless of which app is playing, since `nowplaying-cli` controls the system-level media session):
@@ -34,10 +40,10 @@ Publish one of these payloads to control playback (works regardless of which app
 | `next` | Skip to next track |
 | `previous` | Skip to previous track |
 
-For example, with `DEVICE_NAME=Zack's Work MacBook`:
+For example, with device ID `3f9a1c0e7b2d` (see [Sensors](#sensors) for how to find yours):
 
 ```bash
-mosquitto_pub -t "media2mqtt/zacks_work_macbook/command" -m "togglePlayPause"
+mosquitto_pub -t "media2mqtt/3f9a1c0e7b2d/command" -m "togglePlayPause"
 ```
 
 If `nowplaying-cli` isn't installed, playback control is skipped (sensors still work). See [Home Assistant Examples](#home-assistant-examples) below for wiring this up as a `media_player` entity with native transport controls.
@@ -93,7 +99,7 @@ Located at `/opt/homebrew/etc/media2mqtt/config` (Homebrew) or `~/.local/share/m
 | `MQTT_PASSWORD` | no | | MQTT broker password |
 | `MQTT_DISCOVERY_PREFIX` | no | `homeassistant` | HA discovery topic prefix |
 | `MQTT_TOPIC_PREFIX` | no | `media2mqtt` | State/attribute topic prefix |
-| `DEVICE_NAME` | no | Mac hostname | Device name in Home Assistant |
+| `DEVICE_NAME` | no | Mac hostname | Device name in Home Assistant (display-only; IDs and topics use the [device ID](#sensors)) |
 | `ENABLED_APPS` | no | `music` | Comma-separated: `music`, `podcasts` |
 | `POLL_INTERVAL_SECONDS` | no | `1` | Poll interval in seconds |
 | `LASTFM_SESSION_KEY` | no | | Set to enable [scrobbling](#scrobbling) (see below for how to get one) |
@@ -163,31 +169,31 @@ media_player:
       media_play:
         action: mqtt.publish
         data:
-          topic: media2mqtt/zacks_work_macbook/command
+          topic: media2mqtt/3f9a1c0e7b2d/command
           payload: play
       media_pause:
         action: mqtt.publish
         data:
-          topic: media2mqtt/zacks_work_macbook/command
+          topic: media2mqtt/3f9a1c0e7b2d/command
           payload: pause
       media_play_pause:
         action: mqtt.publish
         data:
-          topic: media2mqtt/zacks_work_macbook/command
+          topic: media2mqtt/3f9a1c0e7b2d/command
           payload: togglePlayPause
       media_next_track:
         action: mqtt.publish
         data:
-          topic: media2mqtt/zacks_work_macbook/command
+          topic: media2mqtt/3f9a1c0e7b2d/command
           payload: next
       media_previous_track:
         action: mqtt.publish
         data:
-          topic: media2mqtt/zacks_work_macbook/command
+          topic: media2mqtt/3f9a1c0e7b2d/command
           payload: previous
 ```
 
-Replace `zacks_work_macbook` with your device's slug (see [Sensors](#sensors) above).
+Replace `3f9a1c0e7b2d` with your device ID (see [Sensors](#sensors) above).
 
 ### Grouped media_player (multi-Mac)
 
@@ -208,7 +214,7 @@ python3 coordinator.py
 | `MQTT_DISCOVERY_PREFIX` | no | `homeassistant` | HA discovery topic prefix |
 | `MQTT_TOPIC_PREFIX` | no | `media2mqtt` | State/attribute topic prefix |
 | `GROUP_NAME` | no | `Now Playing` | Display name of the grouped entity |
-| `GROUP_DEVICE_NAME` | no | `media2mqtt` | Device name in HA device registry |
+| `GROUP_DEVICE_NAME` | no | `media2mqtt` | Device name in HA device registry (display-only) |
 
 The grouped entity uses sticky priority: it shows whichever Mac is currently playing. If nothing is playing, it falls back to paused, then idle. Transport commands (play/pause/next/previous) are routed to the active Mac. A `sensor.media2mqtt_source` entity on the same device shows which Mac is currently active.
 

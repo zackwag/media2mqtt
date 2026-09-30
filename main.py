@@ -7,14 +7,16 @@ Env vars:
   MQTT_PASSWORD             optional
   MQTT_DISCOVERY_PREFIX     optional, default "homeassistant"
   MQTT_TOPIC_PREFIX         optional, default "media2mqtt"
-  DEVICE_NAME               optional, default is the Mac's hostname
-  ENABLED_APPS              optional, comma-separated, default "music"
+  DEVICE_NAME               optional, default is the Mac's hostname. Display-only:
+                            entities and topics are keyed on a hash of the Mac's
+                            hardware UUID (logged at startup as the device ID).
+  ENABLED_APPS             optional, comma-separated, default "music"
                             choices: music, podcasts
   POLL_INTERVAL_SECONDS     optional, default 1
 
 Playback control:
   If nowplaying-cli is installed (`brew install nowplaying-cli`), media2mqtt
-  subscribes to a command topic (MQTT_TOPIC_PREFIX/{device}/command) and runs
+  subscribes to a command topic (MQTT_TOPIC_PREFIX/{device_id}/command) and runs
   play/pause/togglePlayPause/next/previous against it. nowplaying-cli controls
   playback at the system level, so this works regardless of which app is
   playing. If it's not installed, playback control is skipped and only
@@ -47,7 +49,7 @@ import sys
 import time
 
 from media_apps import AVAILABLE_APPS, MediaState, find_nowplaying_cli, get_artwork_b64
-from mqtt_publisher import MqttPublisher
+from mqtt_publisher import MqttPublisher, get_device_id
 from playback_control import PlaybackController, get_volume
 from scrobbler import DEFAULT_API_KEY, DEFAULT_API_SECRET, LastfmScrobbler, ScrobbleTracker
 
@@ -109,6 +111,13 @@ def main() -> None:
             "Last.fm scrobbling enabled for: %s", ", ".join(scrobble_app_keys) or "(no apps)"
         )
 
+    try:
+        device_id = get_device_id()
+    except RuntimeError as exc:
+        _LOGGER.error("Cannot determine a stable device ID: %s", exc)
+        sys.exit(1)
+    _LOGGER.info("Device ID: %s (%s)", device_id, device_name)
+
     publisher = MqttPublisher(
         host=mqtt_host,
         port=mqtt_port,
@@ -116,12 +125,14 @@ def main() -> None:
         password=mqtt_password,
         discovery_prefix=discovery_prefix,
         topic_prefix=topic_prefix,
+        device_id=device_id,
+        device_name=device_name,
     )
 
     object_ids: dict[str, str] = {}
     for key, app in apps:
-        object_ids[key] = publisher.publish_discovery(key, app.app_name, device_name)
-    now_playing_id = publisher.publish_now_playing_discovery(device_name)
+        object_ids[key] = publisher.publish_discovery(key, app.app_name)
+    now_playing_id = publisher.publish_now_playing_discovery()
 
     media_player_id: str | None = None
     nowplaying_bin: str | None = None
@@ -130,12 +141,12 @@ def main() -> None:
     except RuntimeError as exc:
         _LOGGER.warning("Playback control disabled: %s", exc)
     else:
-        command_topic = publisher.subscribe_commands(device_name, controller.handle_command)
-        volume_topic = publisher.subscribe_volume(device_name, controller.handle_volume_command)
+        command_topic = publisher.subscribe_commands(controller.handle_command)
+        volume_topic = publisher.subscribe_volume(controller.handle_volume_command)
         _LOGGER.info(
             "Playback control enabled, listening on %s and %s", command_topic, volume_topic
         )
-        media_player_id = publisher.publish_media_player_discovery(device_name)
+        media_player_id = publisher.publish_media_player_discovery()
         nowplaying_bin = find_nowplaying_cli()
 
     last_artwork_key: tuple[str, str] | None = None
