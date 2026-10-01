@@ -74,3 +74,13 @@ class TestFixedGroupIdentity:
         source = json.loads(published["homeassistant/sensor/media2mqtt_source/config"])
         assert source["unique_id"] == "media2mqtt_source"
         assert "office_grouped" not in json.dumps(list(published)).lower()
+
+
+class TestClose:
+    def test_close_keeps_retained_discovery(self):
+        coordinator = _coordinator()
+        coordinator.publish_discovery()
+        coordinator.client.publish.reset_mock()
+        coordinator.close()
+        coordinator.client.publish.assert_not_called()
+        coordinator.client.disconnect.assert_called_once()

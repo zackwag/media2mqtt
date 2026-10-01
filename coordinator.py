@@ -389,10 +389,9 @@ class Coordinator:
         _LOGGER.info("Published grouped media_player and sensor discovery")
 
     def close(self):
-        self.client.publish(self._group_config_topic, "", qos=1, retain=True)
-        self.client.publish(self._source_config_topic, "", qos=1, retain=True)
-        for config_topic in self._app_sensor_config_topics.values():
-            self.client.publish(config_topic, "", qos=1, retain=True)
+        # Leave the retained discovery in place. Clearing it on shutdown left HA with
+        # no config to replay if it restarted while the coordinator was down, and the
+        # grouped media_player stayed unknown until the coordinator restarted.
         self.client.loop_stop()
         self.client.disconnect()
 
