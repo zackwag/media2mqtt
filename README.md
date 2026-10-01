@@ -24,7 +24,7 @@ printf %s "$(ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformUUID/{
 
 ## Playback control
 
-If [`nowplaying-cli`](https://github.com/kirtan-shah/nowplaying-cli) is installed, media2mqtt subscribes to a command topic and forwards commands to it:
+media2mqtt subscribes to a command topic and forwards commands to [`nowplaying-cli`](https://github.com/kirtan-shah/nowplaying-cli):
 
 ```
 media2mqtt/{device_id}/command
@@ -46,14 +46,14 @@ For example, with device ID `3f9a1c0e7b2d` (see [Sensors](#sensors) for how to f
 mosquitto_pub -t "media2mqtt/3f9a1c0e7b2d/command" -m "togglePlayPause"
 ```
 
-If `nowplaying-cli` isn't installed, playback control is skipped (sensors still work). See [Home Assistant Examples](#home-assistant-examples) below for wiring this up as a `media_player` entity with native transport controls.
+See [Home Assistant Examples](#home-assistant-examples) below for wiring this up as a `media_player` entity with native transport controls.
 
 ## Requirements
 
 - macOS with Apple Music and/or Podcasts
 - MQTT broker (e.g. [Mosquitto](https://mosquitto.org/))
 - Home Assistant with MQTT integration enabled
-- [`nowplaying-cli`](https://github.com/kirtan-shah/nowplaying-cli) (`brew install nowplaying-cli`) — required for Podcasts support and for playback control
+- [`nowplaying-cli`](https://github.com/kirtan-shah/nowplaying-cli) (`brew install nowplaying-cli`). media2mqtt exits at startup without it. The Homebrew formula installs it automatically.
 
 ## Install
 

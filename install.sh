@@ -7,6 +7,13 @@ PLIST_DST="$HOME/Library/LaunchAgents/${PLIST_NAME}.plist"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$INSTALL_DIR/.env"
 
+if ! command -v nowplaying-cli >/dev/null \
+    && [ ! -x /opt/homebrew/bin/nowplaying-cli ] \
+    && [ ! -x /usr/local/bin/nowplaying-cli ]; then
+    echo "nowplaying-cli is required: brew install nowplaying-cli" >&2
+    exit 1
+fi
+
 echo "==> Installing media2mqtt to $INSTALL_DIR"
 
 mkdir -p "$INSTALL_DIR"

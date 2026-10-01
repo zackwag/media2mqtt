@@ -15,15 +15,14 @@ Env vars:
   POLL_INTERVAL_SECONDS     optional, default 1
 
 Playback control:
-  If nowplaying-cli is installed (`brew install nowplaying-cli`), media2mqtt
-  subscribes to a command topic (MQTT_TOPIC_PREFIX/{device_id}/command) and runs
+  nowplaying-cli is required (`brew install nowplaying-cli`); media2mqtt exits
+  at startup if it can't be found. media2mqtt subscribes to a command topic
+  (MQTT_TOPIC_PREFIX/{device_id}/command) and runs
   play/pause/togglePlayPause/next/previous against it. nowplaying-cli controls
   playback at the system level, so this works regardless of which app is
-  playing. If it's not installed, playback control is skipped and only
-  sensors are published.
+  playing.
 
-  When playback control is enabled, media2mqtt also publishes MQTT discovery
-  for a real `media_player` entity (title/artist/transport controls) via the
+  media2mqtt also publishes MQTT discovery for a real `media_player` entity (title/artist/transport controls) via the
   "MQTT Media Player" HACS integration: https://github.com/bkbilly/mqtt_media_player
   Core Home Assistant has no native MQTT discovery schema for media_player, so
   this requires that third-party integration to be installed, and only works
@@ -90,6 +89,11 @@ def main() -> None:
     ]
     poll_interval = int(os.environ.get("POLL_INTERVAL_SECONDS", "1"))
 
+    nowplaying_bin = find_nowplaying_cli()
+    if not nowplaying_bin:
+        _LOGGER.error("nowplaying-cli is required: brew install nowplaying-cli")
+        sys.exit(1)
+
     apps = []
     for key in enabled_app_keys:
         cls = AVAILABLE_APPS.get(key)
@@ -134,20 +138,11 @@ def main() -> None:
         object_ids[key] = publisher.publish_discovery(key, app.app_name)
     now_playing_id = publisher.publish_now_playing_discovery()
 
-    media_player_id: str | None = None
-    nowplaying_bin: str | None = None
-    try:
-        controller = PlaybackController()
-    except RuntimeError as exc:
-        _LOGGER.warning("Playback control disabled: %s", exc)
-    else:
-        command_topic = publisher.subscribe_commands(controller.handle_command)
-        volume_topic = publisher.subscribe_volume(controller.handle_volume_command)
-        _LOGGER.info(
-            "Playback control enabled, listening on %s and %s", command_topic, volume_topic
-        )
-        media_player_id = publisher.publish_media_player_discovery()
-        nowplaying_bin = find_nowplaying_cli()
+    controller = PlaybackController()
+    command_topic = publisher.subscribe_commands(controller.handle_command)
+    volume_topic = publisher.subscribe_volume(controller.handle_volume_command)
+    _LOGGER.info("Playback control listening on %s and %s", command_topic, volume_topic)
+    media_player_id = publisher.publish_media_player_discovery()
 
     last_artwork_key: tuple[str, str] | None = None
     last_artwork_b64: str = ""
@@ -186,7 +181,7 @@ def main() -> None:
                 )
         if active:
             last_active_key = active[0]
-        volume = get_volume() if media_player_id else None
+        volume = get_volume()
         if active:
             key, source, state = active
             title = state.attributes.get(_TITLE_KEYS.get(key, "track"), "")
@@ -209,38 +204,36 @@ def main() -> None:
                     )
                 else:
                     scrobble_tracker.clear()
-            if media_player_id:
-                artwork_key = (title, subtitle)
-                albumart_b64: str | None = None
-                if artwork_key != last_artwork_key and nowplaying_bin:
-                    last_artwork_b64 = get_artwork_b64(nowplaying_bin)
-                    last_artwork_key = artwork_key
-                    albumart_b64 = last_artwork_b64
-                publisher.publish_media_player_state(
-                    media_player_id,
-                    player_state=state.player_state,
-                    title=title,
-                    artist=subtitle,
-                    media_type=_MEDIA_TYPES.get(key, "music"),
-                    duration=state.attributes.get("duration"),
-                    position=state.attributes.get("elapsed"),
-                    albumart_b64=albumart_b64,
-                    volume=volume,
-                )
+            artwork_key = (title, subtitle)
+            albumart_b64: str | None = None
+            if artwork_key != last_artwork_key:
+                last_artwork_b64 = get_artwork_b64(nowplaying_bin)
+                last_artwork_key = artwork_key
+                albumart_b64 = last_artwork_b64
+            publisher.publish_media_player_state(
+                media_player_id,
+                player_state=state.player_state,
+                title=title,
+                artist=subtitle,
+                media_type=_MEDIA_TYPES.get(key, "music"),
+                duration=state.attributes.get("duration"),
+                position=state.attributes.get("elapsed"),
+                albumart_b64=albumart_b64,
+                volume=volume,
+            )
         else:
             publisher.publish_state(now_playing_id, "idle", False, {})
             if scrobble_tracker is not None:
                 scrobble_tracker.clear()
-            if media_player_id:
-                albumart_b64 = "" if last_artwork_key is not None else None
-                last_artwork_key = None
-                last_artwork_b64 = ""
-                publisher.publish_media_player_state(
-                    media_player_id,
-                    player_state="idle",
-                    albumart_b64=albumart_b64,
-                    volume=volume,
-                )
+            albumart_b64 = "" if last_artwork_key is not None else None
+            last_artwork_key = None
+            last_artwork_b64 = ""
+            publisher.publish_media_player_state(
+                media_player_id,
+                player_state="idle",
+                albumart_b64=albumart_b64,
+                volume=volume,
+            )
 
         time.sleep(poll_interval)
 
