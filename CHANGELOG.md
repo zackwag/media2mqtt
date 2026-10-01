@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/zackwag/media2mqtt/compare/v2.0.0...v2.0.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **coordinator:** keep retained discovery on shutdown ([#58](https://github.com/zackwag/media2mqtt/issues/58)) ([962313d](https://github.com/zackwag/media2mqtt/commit/962313db1bce97dc7a3cdff8c245da4166f85962))
+
 ## [2.0.0](https://github.com/zackwag/media2mqtt/compare/v1.12.3...v2.0.0) (2026-09-30)
 
 
