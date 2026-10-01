@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/zackwag/media2mqtt/compare/v2.0.1...v2.1.0) (2026-10-01)
+
+
+### Features
+
+* require nowplaying-cli ([#60](https://github.com/zackwag/media2mqtt/issues/60)) ([1c506c0](https://github.com/zackwag/media2mqtt/commit/1c506c00e3ca0489d86223c0208345d273765012))
+
 ## [2.0.1](https://github.com/zackwag/media2mqtt/compare/v2.0.0...v2.0.1) (2026-10-01)
 
 
