@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/zackwag/media2mqtt/compare/v2.1.0...v2.1.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **podcasts:** compute live elapsed time from frozen MediaRemote snapshot ([#63](https://github.com/zackwag/media2mqtt/issues/63)) ([f8e8be3](https://github.com/zackwag/media2mqtt/commit/f8e8be39bfc5ecc1678878dd18ec3db149272aa6))
+
 ## [2.1.0](https://github.com/zackwag/media2mqtt/compare/v2.0.1...v2.1.0) (2026-10-01)
 
 
