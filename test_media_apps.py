@@ -137,12 +137,10 @@ class TestPodcastsApp:
         state = self.app.poll()
         assert state.player_state == "playing"
         assert state.is_playing is True
-        assert state.attributes == {
-            "episode": "Episode 42",
-            "show": "My Podcast",
-            "duration": "3600",
-            "elapsed": "1200",
-        }
+        assert state.attributes["episode"] == "Episode 42"
+        assert state.attributes["show"] == "My Podcast"
+        assert state.attributes["duration"] == "3600"
+        assert float(state.attributes["elapsed"]) == pytest.approx(1200, abs=1)
 
     @patch("media_apps.subprocess.run")
     def test_paused(self, mock_run):
@@ -182,6 +180,65 @@ class TestPodcastsApp:
         ]
         state = self.app.poll()
         assert state == MediaState()
+
+    @patch("media_apps.subprocess.run")
+    @patch("media_apps.time.monotonic")
+    def test_elapsed_advances_between_polls(self, mock_monotonic, mock_run):
+        mock_monotonic.return_value = 100.0
+        mock_run.side_effect = [
+            _osascript_result("true"),
+            _osascript_result(_nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 1, 500)),
+        ]
+        state = self.app.poll()
+        assert float(state.attributes["elapsed"]) == pytest.approx(500, abs=0.1)
+
+        mock_monotonic.return_value = 105.0
+        mock_run.side_effect = [
+            _osascript_result("true"),
+            _osascript_result(_nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 1, 500)),
+        ]
+        state = self.app.poll()
+        assert float(state.attributes["elapsed"]) == pytest.approx(505, abs=0.1)
+
+    @patch("media_apps.subprocess.run")
+    @patch("media_apps.time.monotonic")
+    def test_elapsed_does_not_exceed_duration(self, mock_monotonic, mock_run):
+        mock_monotonic.return_value = 100.0
+        mock_run.side_effect = [
+            _osascript_result("true"),
+            _osascript_result(
+                _nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 1, 3599)
+            ),
+        ]
+        self.app.poll()
+
+        mock_monotonic.return_value = 200.0
+        mock_run.side_effect = [
+            _osascript_result("true"),
+            _osascript_result(
+                _nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 1, 3599)
+            ),
+        ]
+        state = self.app.poll()
+        assert float(state.attributes["elapsed"]) == pytest.approx(3600, abs=0.1)
+
+    @patch("media_apps.subprocess.run")
+    @patch("media_apps.time.monotonic")
+    def test_elapsed_frozen_when_paused(self, mock_monotonic, mock_run):
+        mock_monotonic.return_value = 100.0
+        mock_run.side_effect = [
+            _osascript_result("true"),
+            _osascript_result(_nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 0, 500)),
+        ]
+        state = self.app.poll()
+
+        mock_monotonic.return_value = 110.0
+        mock_run.side_effect = [
+            _osascript_result("true"),
+            _osascript_result(_nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 0, 500)),
+        ]
+        state = self.app.poll()
+        assert float(state.attributes["elapsed"]) == pytest.approx(500, abs=0.1)
 
     @patch("os.access", return_value=False)
     @patch("os.path.isfile", return_value=False)
