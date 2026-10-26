@@ -7,6 +7,7 @@ import logging
 import os
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass, field
 
 _LOGGER = logging.getLogger(__name__)
@@ -124,9 +125,13 @@ class PodcastsApp(MediaApp):
             raise RuntimeError(
                 "nowplaying-cli is required for Podcasts support: brew install nowplaying-cli"
             )
+        self._elapsed_snapshot: float | None = None
+        self._snapshot_time: float | None = None
+        self._snapshot_rate: float = 0
 
     def poll(self) -> MediaState:
         if not self._app_is_running():
+            self._elapsed_snapshot = None
             return MediaState()
 
         try:
@@ -138,6 +143,7 @@ class PodcastsApp(MediaApp):
                 check=False,
             )
             if result.returncode != 0 or not result.stdout.strip():
+                self._elapsed_snapshot = None
                 return MediaState()
         except subprocess.TimeoutExpired:
             _LOGGER.warning("nowplaying-cli timed out")
@@ -150,6 +156,7 @@ class PodcastsApp(MediaApp):
 
         bundle = data.get("kMRMediaRemoteNowPlayingInfoClientBundleIdentifier", "")
         if bundle != self.bundle_id:
+            self._elapsed_snapshot = None
             return MediaState()
 
         playback_rate = data.get("kMRMediaRemoteNowPlayingInfoPlaybackRate", 0)
@@ -159,7 +166,9 @@ class PodcastsApp(MediaApp):
         title = data.get("kMRMediaRemoteNowPlayingInfoTitle", "")
         show = data.get("kMRMediaRemoteNowPlayingInfoArtist", "")
         duration = data.get("kMRMediaRemoteNowPlayingInfoDuration", "")
-        elapsed = data.get("kMRMediaRemoteNowPlayingInfoElapsedTime", "")
+        raw_elapsed = data.get("kMRMediaRemoteNowPlayingInfoElapsedTime", "")
+
+        elapsed = self._compute_elapsed(raw_elapsed, playback_rate, duration)
 
         attrs: dict[str, str] = {}
         if title:
@@ -169,9 +178,45 @@ class PodcastsApp(MediaApp):
         if duration:
             attrs["duration"] = str(duration)
         if elapsed:
-            attrs["elapsed"] = str(elapsed)
+            attrs["elapsed"] = elapsed
 
         return MediaState(player_state=player_state, is_playing=is_playing, attributes=attrs)
+
+    def _compute_elapsed(
+        self, raw_elapsed: float | str, playback_rate: float, duration: float | str
+    ) -> str:
+        """Compute live elapsed from the frozen snapshot nowplaying-cli provides.
+
+        MediaRemote's ElapsedTime only updates on play/pause/seek, not continuously.
+        We track when the snapshot was first seen and extrapolate from wall-clock time.
+        """
+        if not raw_elapsed and raw_elapsed != 0:
+            self._elapsed_snapshot = None
+            return ""
+
+        try:
+            reported = float(raw_elapsed)
+        except (TypeError, ValueError):
+            self._elapsed_snapshot = None
+            return ""
+
+        now = time.monotonic()
+
+        if reported != self._elapsed_snapshot or playback_rate != self._snapshot_rate:
+            self._elapsed_snapshot = reported
+            self._snapshot_time = now
+            self._snapshot_rate = playback_rate
+
+        computed = reported + (now - self._snapshot_time) * playback_rate
+
+        try:
+            dur = float(duration) if duration else None
+        except (TypeError, ValueError):
+            dur = None
+        if dur is not None and computed > dur:
+            computed = dur
+
+        return str(computed)
 
 
 def get_artwork_b64(nowplaying_bin: str) -> str:
