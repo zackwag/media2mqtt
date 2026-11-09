@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.2](https://github.com/zackwag/media2mqtt/compare/v2.1.1...v2.1.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* only publish MQTT state topics when the payload changes ([#65](https://github.com/zackwag/media2mqtt/issues/65)) ([61a7aeb](https://github.com/zackwag/media2mqtt/commit/61a7aeb21ddffa88ccbd111beacc7febea64ef27))
+
 ## [2.1.1](https://github.com/zackwag/media2mqtt/compare/v2.1.0...v2.1.1) (2026-10-26)
 
 
