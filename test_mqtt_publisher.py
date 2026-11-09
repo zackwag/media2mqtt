@@ -143,3 +143,57 @@ class TestGetDeviceId:
     def test_raises_without_uuid(self, mock_run):
         with pytest.raises(RuntimeError):
             get_device_id()
+
+
+class TestUnchangedStateIsNotRepublished:
+    """The poll loop publishes every second; only changed payloads should reach the broker.
+
+    Each message is a Home Assistant state write, and the MQTT Media Player integration
+    bumps media_position_updated_at even for an identical position, so republishing
+    unchanged state floods the recorder.
+    """
+
+    def setup_method(self):
+        self.publisher = _publisher()
+        self.topic = f"media2mqtt/{DEVICE_ID}_media_player"
+
+    def _publish_paused(self, position: str = "88") -> None:
+        self.publisher.publish_media_player_state(
+            f"{DEVICE_ID}_media_player",
+            player_state="paused",
+            title="Sorry",
+            artist="The English Beat",
+            media_type="music",
+            duration="152",
+            position=position,
+            volume=0.76,
+        )
+
+    def _published_topics(self) -> list[str]:
+        return [call.args[0] for call in self.publisher.client.publish.call_args_list]
+
+    def test_identical_media_player_state_is_skipped(self):
+        self._publish_paused()
+        self.publisher.client.publish.reset_mock()
+        self._publish_paused()
+        self.publisher.client.publish.assert_not_called()
+
+    def test_only_changed_fields_are_published(self):
+        self._publish_paused(position="88")
+        self.publisher.client.publish.reset_mock()
+        self._publish_paused(position="89")
+        assert self._published_topics() == [f"{self.topic}/position"]
+
+    def test_identical_sensor_state_is_skipped(self):
+        self.publisher.publish_state(f"{DEVICE_ID}_music", "paused", False, {"track": "Sorry"})
+        self.publisher.client.publish.reset_mock()
+        self.publisher.publish_state(f"{DEVICE_ID}_music", "paused", False, {"track": "Sorry"})
+        self.publisher.client.publish.assert_not_called()
+
+    def test_reconnect_republishes_everything(self):
+        self._publish_paused()
+        self.publisher.client.publish.reset_mock()
+        self.publisher._on_connect(self.publisher.client, None, None, 0)
+        self._publish_paused()
+        assert f"{self.topic}/state" in self._published_topics()
+        assert f"{self.topic}/position" in self._published_topics()
