@@ -80,6 +80,12 @@ class MqttPublisher:
         self._command_queue: queue.Queue[str] | None = None
         self._volume_topic: str | None = None
         self._volume_handler: Callable[[str], None] | None = None
+        # Last payload published per retained state topic. The poll loop calls the
+        # publish_* methods every second whether or not anything changed, and every
+        # message reaching Home Assistant is a state write (the MQTT Media Player
+        # integration bumps media_position_updated_at even for an identical position),
+        # so unchanged payloads are skipped.
+        self._last_published: dict[str, str] = {}
 
         self.client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2, client_id=f"media2mqtt_{device_id}"
@@ -97,6 +103,9 @@ class MqttPublisher:
         if reason_code == 0:
             _LOGGER.info("Connected to MQTT broker at %s:%s", self.host, self.port)
             self._connected = True
+            # Republish everything after a (re)connect in case the broker lost its
+            # retained messages.
+            self._last_published.clear()
             if self._command_topic:
                 self.client.subscribe(self._command_topic, qos=1)
             if self._volume_topic:
@@ -138,6 +147,13 @@ class MqttPublisher:
             )
             self.client.loop_start()
 
+    def _publish_state_topic(self, topic: str, payload: str) -> None:
+        """Publish a retained state payload, skipping it if unchanged since the last publish."""
+        if self._last_published.get(topic) == payload:
+            return
+        self.client.publish(topic, payload, qos=1, retain=True)
+        self._last_published[topic] = payload
+
     def _device_block(self) -> dict:
         return {
             "identifiers": [f"media2mqtt_{self.device_id}"],
@@ -172,10 +188,8 @@ class MqttPublisher:
     ) -> None:
         state_topic = f"{self.topic_prefix}/{object_id}/state"
         attrs_topic = f"{self.topic_prefix}/{object_id}/attributes"
-        self.client.publish(state_topic, player_state, qos=1, retain=True)
-        self.client.publish(
-            attrs_topic, json.dumps({**attributes, "is_playing": is_playing}), qos=1, retain=True
-        )
+        self._publish_state_topic(state_topic, player_state)
+        self._publish_state_topic(attrs_topic, json.dumps({**attributes, "is_playing": is_playing}))
 
     def command_topic(self) -> str:
         return f"{self.topic_prefix}/{self.device_id}/command"
@@ -247,16 +261,16 @@ class MqttPublisher:
         volume: float | None = None,
     ) -> None:
         topic = f"{self.topic_prefix}/{object_id}"
-        self.client.publish(f"{topic}/state", player_state, qos=1, retain=True)
-        self.client.publish(f"{topic}/title", title, qos=1, retain=True)
-        self.client.publish(f"{topic}/artist", artist, qos=1, retain=True)
-        self.client.publish(f"{topic}/mediatype", media_type, qos=1, retain=True)
-        self.client.publish(f"{topic}/duration", _as_int_str(duration), qos=1, retain=True)
-        self.client.publish(f"{topic}/position", _as_int_str(position), qos=1, retain=True)
+        self._publish_state_topic(f"{topic}/state", player_state)
+        self._publish_state_topic(f"{topic}/title", title)
+        self._publish_state_topic(f"{topic}/artist", artist)
+        self._publish_state_topic(f"{topic}/mediatype", media_type)
+        self._publish_state_topic(f"{topic}/duration", _as_int_str(duration))
+        self._publish_state_topic(f"{topic}/position", _as_int_str(position))
         if albumart_b64 is not None:
-            self.client.publish(f"{topic}/albumart", albumart_b64, qos=1, retain=True)
+            self._publish_state_topic(f"{topic}/albumart", albumart_b64)
         if volume is not None:
-            self.client.publish(f"{topic}/vol", str(round(volume, 2)), qos=1, retain=True)
+            self._publish_state_topic(f"{topic}/vol", str(round(volume, 2)))
 
     def subscribe_commands(self, handler: Callable[[str], None]) -> str:
         """Subscribe to the device's command topic, invoking handler(payload) for each message.

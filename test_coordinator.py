@@ -84,3 +84,41 @@ class TestClose:
         coordinator.close()
         coordinator.client.publish.assert_not_called()
         coordinator.client.disconnect.assert_called_once()
+
+
+POSITION_TOPIC = "media2mqtt/office_mac_mini_media_media_player/position"
+GROUPED_POSITION_TOPIC = "media2mqtt/grouped/position"
+
+
+class TestUnchangedGroupedStateIsNotRepublished:
+    """Every per-device field update re-runs _update_grouped_state().
+
+    Only grouped topics whose payload actually changed should be published; each
+    message is a Home Assistant state write.
+    """
+
+    def setup_method(self):
+        self.coordinator = _coordinator()
+        config = _media_player_config(state_position_topic=POSITION_TOPIC)
+        self.coordinator._handle_discovery(CONFIG_TOPIC, json.dumps(config))
+        self.coordinator._handle_state_update(STATE_TOPIC, "paused")
+        self.coordinator._handle_state_update(POSITION_TOPIC, "88")
+        self.coordinator.client.publish.reset_mock()
+
+    def _published_topics(self) -> list[str]:
+        return [call.args[0] for call in self.coordinator.client.publish.call_args_list]
+
+    def test_identical_device_update_publishes_nothing(self):
+        self.coordinator._handle_state_update(STATE_TOPIC, "paused")
+        self.coordinator._handle_state_update(POSITION_TOPIC, "88")
+        self.coordinator.client.publish.assert_not_called()
+
+    def test_only_changed_grouped_topic_is_published(self):
+        self.coordinator._handle_state_update(POSITION_TOPIC, "89")
+        assert self._published_topics() == [GROUPED_POSITION_TOPIC]
+
+    def test_reconnect_republishes_everything(self):
+        self.coordinator._on_connect(self.coordinator.client, None, None, 0)
+        self.coordinator._handle_state_update(STATE_TOPIC, "paused")
+        assert "media2mqtt/grouped/state" in self._published_topics()
+        assert GROUPED_POSITION_TOPIC in self._published_topics()

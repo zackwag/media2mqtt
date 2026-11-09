@@ -118,7 +118,11 @@ class Coordinator:
         self._devices: dict[str, DeviceState] = {}
         self._topic_to_device: dict[str, tuple[str, str]] = {}
         self._active_device_id: str | None = None
-        self._last_albumart: str = ""
+        # Last payload published per retained grouped topic. Every per-device field
+        # update re-runs _update_grouped_state(), which would otherwise republish every
+        # grouped topic each time, and each message reaching Home Assistant is a state
+        # write, so unchanged payloads are skipped.
+        self._last_published: dict[str, str] = {}
         self._lock = threading.Lock()
 
         self._group_object_id = f"{_GROUP_ID}_grouped"
@@ -158,6 +162,10 @@ class Coordinator:
             _LOGGER.warning("MQTT connection refused: %s", reason_code)
             return
         _LOGGER.info("Connected to MQTT broker")
+        # Republish everything after a (re)connect in case the broker lost its
+        # retained messages.
+        with self._lock:
+            self._last_published.clear()
         discovery_topic = f"{self.discovery_prefix}/media_player/+/config"
         client.subscribe(discovery_topic, qos=1)
         client.subscribe(self._group_command_topic, qos=1)
@@ -272,6 +280,13 @@ class Coordinator:
             if topic:
                 self.client.publish(topic, payload.strip(), qos=1)
 
+    def _publish_state_topic(self, topic: str, payload: str) -> None:
+        """Publish a retained state payload, skipping it if unchanged since the last publish."""
+        if self._last_published.get(topic) == payload:
+            return
+        self.client.publish(topic, payload, qos=1, retain=True)
+        self._last_published[topic] = payload
+
     def _update_grouped_state(self):
         active = self._active_device_id
 
@@ -298,35 +313,32 @@ class Coordinator:
         t = self._group_topic
         if active and active in self._devices:
             dev = self._devices[active]
-            self.client.publish(f"{t}/state", dev.state, qos=1, retain=True)
-            self.client.publish(f"{t}/title", dev.title, qos=1, retain=True)
-            self.client.publish(f"{t}/artist", dev.artist, qos=1, retain=True)
-            self.client.publish(f"{t}/mediatype", dev.mediatype, qos=1, retain=True)
-            self.client.publish(f"{t}/duration", dev.duration, qos=1, retain=True)
-            self.client.publish(f"{t}/position", dev.position, qos=1, retain=True)
-            self.client.publish(f"{t}/vol", dev.volume, qos=1, retain=True)
-            if dev.albumart != self._last_albumart:
-                self._last_albumart = dev.albumart
-                self.client.publish(f"{t}/albumart", dev.albumart, qos=1, retain=True)
+            self._publish_state_topic(f"{t}/state", dev.state)
+            self._publish_state_topic(f"{t}/title", dev.title)
+            self._publish_state_topic(f"{t}/artist", dev.artist)
+            self._publish_state_topic(f"{t}/mediatype", dev.mediatype)
+            self._publish_state_topic(f"{t}/duration", dev.duration)
+            self._publish_state_topic(f"{t}/position", dev.position)
+            self._publish_state_topic(f"{t}/vol", dev.volume)
+            self._publish_state_topic(f"{t}/albumart", dev.albumart)
             if active != prev_active:
-                self.client.publish(self._source_state_topic, dev.display_name, qos=1, retain=True)
+                self._publish_state_topic(self._source_state_topic, dev.display_name)
             for mediatype, state_topic in self._app_sensor_topics.items():
                 app_state = dev.state if dev.mediatype == mediatype else "idle"
-                self.client.publish(state_topic, app_state, qos=1, retain=True)
+                self._publish_state_topic(state_topic, app_state)
         else:
-            self.client.publish(f"{t}/state", "idle", qos=1, retain=True)
-            self.client.publish(f"{t}/title", "", qos=1, retain=True)
-            self.client.publish(f"{t}/artist", "", qos=1, retain=True)
-            self.client.publish(f"{t}/mediatype", "", qos=1, retain=True)
-            self.client.publish(f"{t}/duration", "", qos=1, retain=True)
-            self.client.publish(f"{t}/position", "", qos=1, retain=True)
-            self.client.publish(f"{t}/vol", "", qos=1, retain=True)
+            self._publish_state_topic(f"{t}/state", "idle")
+            self._publish_state_topic(f"{t}/title", "")
+            self._publish_state_topic(f"{t}/artist", "")
+            self._publish_state_topic(f"{t}/mediatype", "")
+            self._publish_state_topic(f"{t}/duration", "")
+            self._publish_state_topic(f"{t}/position", "")
+            self._publish_state_topic(f"{t}/vol", "")
             for state_topic in self._app_sensor_topics.values():
-                self.client.publish(state_topic, "idle", qos=1, retain=True)
+                self._publish_state_topic(state_topic, "idle")
             if prev_active is not None:
-                self._last_albumart = ""
-                self.client.publish(f"{t}/albumart", "", qos=1, retain=True)
-                self.client.publish(self._source_state_topic, "", qos=1, retain=True)
+                self._publish_state_topic(f"{t}/albumart", "")
+                self._publish_state_topic(self._source_state_topic, "")
 
     def publish_discovery(self):
         t = self._group_topic
