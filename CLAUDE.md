@@ -28,6 +28,14 @@ Core HA MQTT has no `media_player` discovery schema. `publish_media_player_disco
 
 Sensors (`sensor.*`) use core HA MQTT discovery and have none of these issues.
 
+## Recorder churn
+
+Every MQTT message that changes an entity's state or attributes is a Home Assistant recorder row, and attribute changes also write a new attributes row that never deduplicates if a value is always new. So:
+
+- Unchanged payloads are skipped (`_publish_state_topic` in both `mqtt_publisher.py` and `coordinator.py`).
+- Never publish a value that changes every poll as a sensor attribute. `elapsed` is stripped via `_UNPUBLISHED_SENSOR_ATTRIBUTES`; scrobbling reads it from `MediaState` in-process, not from MQTT.
+- The media_player `position` is only sent while playing on a seek, a state/track change, or every `_POSITION_REFRESH_SECONDS` (`_should_publish_position`). HA extrapolates between updates. Re-anchoring publishes with `force=True` because the MQTT Media Player integration stamps `media_position_updated_at` on message arrival, not value change. The coordinator mirrors this: a playing position message from the active device is forwarded to the grouped player even if unchanged (`position_from` in `_update_grouped_state`).
+
 ## Coordinator contract
 
 `coordinator.py` finds devices by subscribing to `<discovery_prefix>/media_player/+/config` and keeping any payload whose `device.identifiers` starts with `media2mqtt_`. It then reads the `state_*_topic` / `command_*_topic` keys from that payload to route state and commands. Renaming those keys in `mqtt_publisher.py` breaks the coordinator.

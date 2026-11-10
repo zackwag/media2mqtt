@@ -197,3 +197,112 @@ class TestUnchangedStateIsNotRepublished:
         self._publish_paused()
         assert f"{self.topic}/state" in self._published_topics()
         assert f"{self.topic}/position" in self._published_topics()
+
+
+class TestSensorAttributes:
+    """Per-second-changing values must stay out of sensor attributes.
+
+    The recorder stores a state row plus a never-deduplicated attributes row for
+    every attribute change, so a live `elapsed` grew the database every second.
+    """
+
+    def setup_method(self):
+        self.publisher = _publisher()
+
+    def _attributes(self) -> dict:
+        topic = f"media2mqtt/{DEVICE_ID}_music/attributes"
+        calls = [c for c in self.publisher.client.publish.call_args_list if c.args[0] == topic]
+        return json.loads(calls[-1].args[1])
+
+    def test_elapsed_is_not_published(self):
+        attrs = {"track": "Dogs", "duration": "1024.9", "elapsed": "811.6"}
+        self.publisher.publish_state(f"{DEVICE_ID}_music", "playing", True, attrs)
+        assert self._attributes() == {"track": "Dogs", "duration": "1024.9", "is_playing": True}
+
+    def test_elapsed_alone_changing_publishes_nothing(self):
+        object_id = f"{DEVICE_ID}_music"
+        self.publisher.publish_state(object_id, "playing", True, {"track": "Dogs", "elapsed": "1"})
+        self.publisher.client.publish.reset_mock()
+        self.publisher.publish_state(object_id, "playing", True, {"track": "Dogs", "elapsed": "2"})
+        self.publisher.client.publish.assert_not_called()
+
+    def test_caller_attributes_are_not_mutated(self):
+        attrs = {"track": "Dogs", "elapsed": "811.6"}
+        self.publisher.publish_state(f"{DEVICE_ID}_music", "playing", True, attrs)
+        assert attrs == {"track": "Dogs", "elapsed": "811.6"}
+
+
+@patch("mqtt_publisher.time.monotonic")
+class TestPlayingPositionIsThrottled:
+    """A playing position is only re-sent on a seek, a state/track change, or a refresh.
+
+    Home Assistant extrapolates position from media_position_updated_at, so sending
+    it every poll only adds a recorder row per second.
+    """
+
+    def setup_method(self):
+        self.publisher = _publisher()
+        self.position_topic = f"media2mqtt/{DEVICE_ID}_media_player/position"
+
+    def _publish(self, position, state: str = "playing", title: str = "Dogs") -> None:
+        self.publisher.publish_media_player_state(
+            f"{DEVICE_ID}_media_player",
+            player_state=state,
+            title=title,
+            artist="Pink Floyd",
+            media_type="music",
+            duration="1024",
+            position=position,
+        )
+
+    def _positions(self) -> list[str]:
+        return [
+            call.args[1]
+            for call in self.publisher.client.publish.call_args_list
+            if call.args[0] == self.position_topic
+        ]
+
+    def _play(self, mock_monotonic, ticks: list[tuple[float, float]]) -> None:
+        for now, position in ticks:
+            mock_monotonic.return_value = now
+            self._publish(position)
+
+    def test_steady_playback_publishes_once(self, mock_monotonic):
+        self._play(mock_monotonic, [(t, 100 + t + 0.4) for t in range(30)])
+        assert self._positions() == ["100"]
+
+    def test_seek_is_published(self, mock_monotonic):
+        self._play(mock_monotonic, [(0, 100), (1, 101), (2, 500), (3, 501)])
+        assert self._positions() == ["100", "500"]
+
+    def test_refreshes_periodically(self, mock_monotonic):
+        self._play(mock_monotonic, [(t, 100 + t) for t in range(121)])
+        assert self._positions() == ["100", "160", "220"]
+
+    def test_track_change_is_published(self, mock_monotonic):
+        self._play(mock_monotonic, [(0, 100), (1, 101)])
+        mock_monotonic.return_value = 2
+        self._publish(2, title="Pigs (Three Different Ones)")
+        assert self._positions() == ["100", "2"]
+
+    def test_resume_at_paused_position_is_forced(self, mock_monotonic):
+        # The integration stamps media_position_updated_at on arrival, so resuming
+        # must resend the position even though the value is unchanged
+        mock_monotonic.return_value = 0
+        self._publish(88, state="paused")
+        mock_monotonic.return_value = 300
+        self._publish(88)
+        assert self._positions() == ["88", "88"]
+
+    def test_paused_position_is_deduplicated_not_throttled(self, mock_monotonic):
+        mock_monotonic.return_value = 0
+        self._publish(88, state="paused")
+        self._publish(88, state="paused")
+        self._publish(90, state="paused")
+        assert self._positions() == ["88", "90"]
+
+    def test_reconnect_republishes_position(self, mock_monotonic):
+        self._play(mock_monotonic, [(0, 100), (1, 101)])
+        self.publisher._on_connect(self.publisher.client, None, None, 0)
+        self._play(mock_monotonic, [(2, 102)])
+        assert self._positions() == ["100", "102"]
