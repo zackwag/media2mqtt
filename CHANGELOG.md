@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/zackwag/media2mqtt/compare/v2.1.2...v3.0.0) (2026-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* stop per-second recorder writes while playing ([#67](https://github.com/zackwag/media2mqtt/issues/67))
+
+### Bug Fixes
+
+* stop per-second recorder writes while playing ([#67](https://github.com/zackwag/media2mqtt/issues/67)) ([c833b91](https://github.com/zackwag/media2mqtt/commit/c833b91fe1466780a1b8f5c6cebb25b711188210))
+
 ## [2.1.2](https://github.com/zackwag/media2mqtt/compare/v2.1.1...v2.1.2) (2026-11-09)
 
 
