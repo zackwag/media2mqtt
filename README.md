@@ -220,6 +220,28 @@ python3 coordinator.py
 
 The grouped entity uses sticky priority: it shows whichever Mac is currently playing. If nothing is playing, it falls back to paused, then idle. Transport commands (play/pause/next/previous) are routed to the active Mac. A `sensor.media2mqtt_source` entity on the same device shows which Mac is currently active.
 
+#### Running the coordinator on a Mac
+
+```bash
+brew install zackwag/tap/media2mqtt-coordinator
+nano /opt/homebrew/etc/media2mqtt-coordinator/config
+```
+
+Unlike the per-Mac service, the coordinator doesn't need a logged-in user, so run it as a system LaunchDaemon that starts at boot:
+
+```bash
+sudo brew services start media2mqtt-coordinator
+```
+
+This installs `/Library/LaunchDaemons/sh.brew.media2mqtt-coordinator.plist`. To pick up a new version after upgrading, restart the daemon with `launchctl kickstart` (`-k` kills the running instance first):
+
+```bash
+brew upgrade media2mqtt-coordinator
+sudo launchctl kickstart -k system/sh.brew.media2mqtt-coordinator
+```
+
+Logs: `/opt/homebrew/var/log/media2mqtt-coordinator.log`
+
 ### iOS Live Activity
 
 Show what's playing on your iPhone lock screen and Dynamic Island using the HA Companion App. This example uses the [grouped media_player](#grouped-media_player-multi-mac) entity, but works with any per-device media_player entity too — just change the `entity_id`.
