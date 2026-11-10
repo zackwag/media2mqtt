@@ -8,9 +8,11 @@ Each enabled app gets a `sensor` entity under a shared device in Home Assistant.
 
 | Sensor | State | Attributes |
 |---|---|---|
-| `sensor.{device_name}_music` | `playing` / `paused` / `stopped` / `idle` | `track`, `artist`, `album`, `duration`, `elapsed`, `is_playing` |
-| `sensor.{device_name}_podcasts` | `playing` / `paused` / `stopped` / `idle` | `episode`, `show`, `duration`, `elapsed`, `is_playing` |
-| `sensor.{device_name}_now_playing` | `playing` / `paused` / `idle` | `source`, `title`, `subtitle`, `duration`, `elapsed`, `is_playing` |
+| `sensor.{device_name}_music` | `playing` / `paused` / `stopped` / `idle` | `track`, `artist`, `album`, `duration`, `is_playing` |
+| `sensor.{device_name}_podcasts` | `playing` / `paused` / `stopped` / `idle` | `episode`, `show`, `duration`, `is_playing` |
+| `sensor.{device_name}_now_playing` | `playing` / `paused` / `idle` | `source`, `title`, `subtitle`, `duration`, `is_playing` |
+
+Playback position isn't a sensor attribute: it changes every second, and Home Assistant's recorder would store a new row each time. It's on the [`media_player` entity](#media_player-entity-with-title-artist-and-transport-controls-recommended) as `media_position` instead.
 
 For example, with `DEVICE_NAME=Zack's Work MacBook`, the entity ID would be `sensor.zacks_work_macbook_music`.
 

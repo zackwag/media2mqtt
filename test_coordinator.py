@@ -122,3 +122,17 @@ class TestUnchangedGroupedStateIsNotRepublished:
         self.coordinator._handle_state_update(STATE_TOPIC, "paused")
         assert "media2mqtt/grouped/state" in self._published_topics()
         assert GROUPED_POSITION_TOPIC in self._published_topics()
+
+    def test_playing_position_resend_is_forwarded(self):
+        # media2mqtt re-sends an identical position to re-anchor it on resume; the
+        # integration stamps media_position_updated_at on arrival, so it must pass through
+        self.coordinator._handle_state_update(STATE_TOPIC, "playing")
+        self.coordinator.client.publish.reset_mock()
+        self.coordinator._handle_state_update(POSITION_TOPIC, "88")
+        assert self._published_topics() == [GROUPED_POSITION_TOPIC]
+
+    def test_state_update_while_playing_does_not_resend_position(self):
+        self.coordinator._handle_state_update(STATE_TOPIC, "playing")
+        self.coordinator.client.publish.reset_mock()
+        self.coordinator._handle_state_update(STATE_TOPIC, "playing")
+        self.coordinator.client.publish.assert_not_called()

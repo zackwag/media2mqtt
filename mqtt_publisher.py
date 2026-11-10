@@ -8,11 +8,27 @@ import logging
 import queue
 import subprocess
 import threading
+import time
 from collections.abc import Callable
 
 import paho.mqtt.client as mqtt
 
 _LOGGER = logging.getLogger(__name__)
+
+# Sensor attributes that are never published. `elapsed` changes on every poll while
+# playing, and Home Assistant's recorder stores a new state row plus a new (never
+# deduplicated) attributes row for every change, so it alone grew the database by
+# ~2 rows/second per playing Mac. Position lives on the media_player entity instead.
+_UNPUBLISHED_SENSOR_ATTRIBUTES = frozenset({"elapsed"})
+
+# A playing track's position advances on its own and Home Assistant extrapolates it
+# from media_position_updated_at, so it's only re-sent when it jumps by more than the
+# tolerance (a seek), when the state or track changes, or every refresh interval. The
+# refresh bounds how stale the retained position can be: the MQTT Media Player
+# integration stamps media_position_updated_at when a position message arrives, so
+# after an HA or coordinator restart the retained value is treated as current.
+_POSITION_DRIFT_TOLERANCE_SECONDS = 3
+_POSITION_REFRESH_SECONDS = 60
 
 
 def _get_mac_model() -> str:
@@ -86,6 +102,9 @@ class MqttPublisher:
         # integration bumps media_position_updated_at even for an identical position),
         # so unchanged payloads are skipped.
         self._last_published: dict[str, str] = {}
+        # object_id -> (position in seconds, time.monotonic()) of the last position
+        # published while playing; see _should_publish_position.
+        self._position_anchors: dict[str, tuple[int, float]] = {}
 
         self.client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2, client_id=f"media2mqtt_{device_id}"
@@ -106,6 +125,7 @@ class MqttPublisher:
             # Republish everything after a (re)connect in case the broker lost its
             # retained messages.
             self._last_published.clear()
+            self._position_anchors.clear()
             if self._command_topic:
                 self.client.subscribe(self._command_topic, qos=1)
             if self._volume_topic:
@@ -147,9 +167,13 @@ class MqttPublisher:
             )
             self.client.loop_start()
 
-    def _publish_state_topic(self, topic: str, payload: str) -> None:
-        """Publish a retained state payload, skipping it if unchanged since the last publish."""
-        if self._last_published.get(topic) == payload:
+    def _publish_state_topic(self, topic: str, payload: str, force: bool = False) -> None:
+        """Publish a retained state payload, skipping it if unchanged since the last publish.
+
+        force publishes even an unchanged payload, for consumers that react to the
+        message arriving rather than to its value.
+        """
+        if not force and self._last_published.get(topic) == payload:
             return
         self.client.publish(topic, payload, qos=1, retain=True)
         self._last_published[topic] = payload
@@ -188,8 +212,9 @@ class MqttPublisher:
     ) -> None:
         state_topic = f"{self.topic_prefix}/{object_id}/state"
         attrs_topic = f"{self.topic_prefix}/{object_id}/attributes"
+        published = {k: v for k, v in attributes.items() if k not in _UNPUBLISHED_SENSOR_ATTRIBUTES}
         self._publish_state_topic(state_topic, player_state)
-        self._publish_state_topic(attrs_topic, json.dumps({**attributes, "is_playing": is_playing}))
+        self._publish_state_topic(attrs_topic, json.dumps({**published, "is_playing": is_playing}))
 
     def command_topic(self) -> str:
         return f"{self.topic_prefix}/{self.device_id}/command"
@@ -261,16 +286,52 @@ class MqttPublisher:
         volume: float | None = None,
     ) -> None:
         topic = f"{self.topic_prefix}/{object_id}"
+        playback_changed = any(
+            self._last_published.get(f"{topic}/{field}") != value
+            for field, value in (("state", player_state), ("title", title), ("artist", artist))
+        )
         self._publish_state_topic(f"{topic}/state", player_state)
         self._publish_state_topic(f"{topic}/title", title)
         self._publish_state_topic(f"{topic}/artist", artist)
         self._publish_state_topic(f"{topic}/mediatype", media_type)
         self._publish_state_topic(f"{topic}/duration", _as_int_str(duration))
-        self._publish_state_topic(f"{topic}/position", _as_int_str(position))
+        position_str = _as_int_str(position)
+        if player_state == "playing" and position_str:
+            if self._should_publish_position(object_id, int(position_str), playback_changed):
+                # Forced: the MQTT Media Player integration stamps
+                # media_position_updated_at on arrival, so re-anchoring must send the
+                # message even if the value matches (e.g. resuming at the paused position).
+                self._publish_state_topic(f"{topic}/position", position_str, force=True)
+        else:
+            self._position_anchors.pop(object_id, None)
+            self._publish_state_topic(f"{topic}/position", position_str)
         if albumart_b64 is not None:
             self._publish_state_topic(f"{topic}/albumart", albumart_b64)
         if volume is not None:
             self._publish_state_topic(f"{topic}/vol", str(round(volume, 2)))
+
+    def _should_publish_position(
+        self, object_id: str, position: int, playback_changed: bool
+    ) -> bool:
+        """Return whether a playing position needs publishing, re-anchoring it if so.
+
+        Skips positions that match where steady playback from the last published
+        position would be, so a playing track costs one Home Assistant state write per
+        refresh interval instead of one per poll.
+        """
+        now = time.monotonic()
+        anchor = self._position_anchors.get(object_id)
+        if anchor is not None and not playback_changed:
+            anchored_position, anchored_at = anchor
+            since = now - anchored_at
+            expected = anchored_position + since
+            if (
+                since < _POSITION_REFRESH_SECONDS
+                and abs(position - expected) <= _POSITION_DRIFT_TOLERANCE_SECONDS
+            ):
+                return False
+        self._position_anchors[object_id] = (position, now)
+        return True
 
     def subscribe_commands(self, handler: Callable[[str], None]) -> str:
         """Subscribe to the device's command topic, invoking handler(payload) for each message.

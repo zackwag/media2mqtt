@@ -254,7 +254,7 @@ class Coordinator:
             if not device:
                 return
             setattr(device, field, payload)
-            self._update_grouped_state()
+            self._update_grouped_state(position_from=device_id if field == "position" else None)
 
     def _handle_command(self, payload: str):
         with self._lock:
@@ -280,14 +280,26 @@ class Coordinator:
             if topic:
                 self.client.publish(topic, payload.strip(), qos=1)
 
-    def _publish_state_topic(self, topic: str, payload: str) -> None:
-        """Publish a retained state payload, skipping it if unchanged since the last publish."""
-        if self._last_published.get(topic) == payload:
+    def _publish_state_topic(self, topic: str, payload: str, force: bool = False) -> None:
+        """Publish a retained state payload, skipping it if unchanged since the last publish.
+
+        force publishes even an unchanged payload, for consumers that react to the
+        message arriving rather than to its value.
+        """
+        if not force and self._last_published.get(topic) == payload:
             return
         self.client.publish(topic, payload, qos=1, retain=True)
         self._last_published[topic] = payload
 
-    def _update_grouped_state(self):
+    def _update_grouped_state(self, position_from: str | None = None):
+        """Publish the grouped player's state from the active device.
+
+        position_from is the device whose position message triggered this update.
+        media2mqtt only re-sends a playing position to re-anchor it (seek, resume,
+        periodic refresh), and the MQTT Media Player integration stamps
+        media_position_updated_at on arrival, so the active device's playing position
+        is forwarded even when the value is unchanged.
+        """
         active = self._active_device_id
 
         playing = None
@@ -318,7 +330,11 @@ class Coordinator:
             self._publish_state_topic(f"{t}/artist", dev.artist)
             self._publish_state_topic(f"{t}/mediatype", dev.mediatype)
             self._publish_state_topic(f"{t}/duration", dev.duration)
-            self._publish_state_topic(f"{t}/position", dev.position)
+            self._publish_state_topic(
+                f"{t}/position",
+                dev.position,
+                force=position_from == active and dev.state == "playing",
+            )
             self._publish_state_topic(f"{t}/vol", dev.volume)
             self._publish_state_topic(f"{t}/albumart", dev.albumart)
             if active != prev_active:
