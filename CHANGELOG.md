@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.0](https://github.com/zackwag/media2mqtt/compare/v3.1.1...v3.2.0) (2026-11-11)
+
+
+### Features
+
+* publish album name to the media_player entity ([#75](https://github.com/zackwag/media2mqtt/issues/75)) ([52586d9](https://github.com/zackwag/media2mqtt/commit/52586d9af280117a7f5945a3be0b0e45304a67a5))
+
 ## [3.1.1](https://github.com/zackwag/media2mqtt/compare/v3.1.0...v3.1.1) (2026-11-11)
 
 
