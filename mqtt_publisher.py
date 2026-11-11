@@ -96,6 +96,8 @@ class MqttPublisher:
         self._command_queue: queue.Queue[str] | None = None
         self._volume_topic: str | None = None
         self._volume_handler: Callable[[str], None] | None = None
+        self._seek_topic: str | None = None
+        self._seek_handler: Callable[[str], None] | None = None
         # Last payload published per retained state topic. The poll loop calls the
         # publish_* methods every second whether or not anything changed, and every
         # message reaching Home Assistant is a state write (the MQTT Media Player
@@ -130,6 +132,8 @@ class MqttPublisher:
                 self.client.subscribe(self._command_topic, qos=1)
             if self._volume_topic:
                 self.client.subscribe(self._volume_topic, qos=1)
+            if self._seek_topic:
+                self.client.subscribe(self._seek_topic, qos=1)
         else:
             _LOGGER.warning("MQTT connection refused: %s", reason_code)
 
@@ -138,13 +142,17 @@ class MqttPublisher:
         if msg.topic == self._volume_topic and self._volume_handler:
             self._command_queue.put(("volume", payload))
             return
+        if msg.topic == self._seek_topic and self._seek_handler:
+            self._command_queue.put(("seek", payload))
+            return
         if msg.topic == self._command_topic and self._command_queue is not None:
             self._command_queue.put(("command", payload))
 
     def _process_commands(self):
         while True:
             kind, payload = self._command_queue.get()
-            handler = self._volume_handler if kind == "volume" else self._command_handler
+            handlers = {"volume": self._volume_handler, "seek": self._seek_handler}
+            handler = handlers.get(kind, self._command_handler)
             if handler is None:
                 continue
             try:
@@ -222,6 +230,9 @@ class MqttPublisher:
     def volume_command_topic(self) -> str:
         return f"{self.topic_prefix}/{self.device_id}/volume"
 
+    def seek_command_topic(self) -> str:
+        return f"{self.topic_prefix}/{self.device_id}/seek"
+
     def publish_media_player_discovery(self) -> str:
         """Publish discovery for the "MQTT Media Player" HACS integration.
 
@@ -249,6 +260,7 @@ class MqttPublisher:
         topic = f"{self.topic_prefix}/{object_id}"
         command_topic = self.command_topic()
         vol_command_topic = self.volume_command_topic()
+        seek_command_topic = self.seek_command_topic()
         config_topic = f"{self.discovery_prefix}/media_player/{object_id}/config"
         payload = {
             "device": self._device_block(),
@@ -269,6 +281,7 @@ class MqttPublisher:
             "command_previous_topic": command_topic,
             "command_previous_payload": "previous",
             "command_volume_topic": vol_command_topic,
+            "command_seek_topic": seek_command_topic,
         }
         self.client.publish(config_topic, json.dumps(payload), qos=1, retain=True)
         return object_id
@@ -343,6 +356,18 @@ class MqttPublisher:
         topic = self.command_topic()
         self._command_topic = topic
         self._command_handler = handler
+        if self._command_queue is None:
+            self._command_queue = queue.Queue()
+            threading.Thread(target=self._process_commands, daemon=True).start()
+        if self._connected:
+            self.client.subscribe(topic, qos=1)
+        return topic
+
+    def subscribe_seek(self, handler: Callable[[str], None]) -> str:
+        """Subscribe to the device's seek command topic."""
+        topic = self.seek_command_topic()
+        self._seek_topic = topic
+        self._seek_handler = handler
         if self._command_queue is None:
             self._command_queue = queue.Queue()
             threading.Thread(target=self._process_commands, daemon=True).start()

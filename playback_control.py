@@ -43,6 +43,27 @@ class PlaybackController:
         except subprocess.TimeoutExpired:
             _LOGGER.warning("nowplaying-cli %s timed out", command)
 
+    def handle_seek_command(self, payload: str) -> None:
+        payload = payload.strip()
+        try:
+            position = int(float(payload))
+        except (ValueError, TypeError):
+            _LOGGER.warning("Ignoring invalid seek payload: %r", payload)
+            return
+        position = max(position, 0)
+        try:
+            result = subprocess.run(
+                [self._nowplaying_bin, "seek", str(position)],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode != 0:
+                _LOGGER.warning("nowplaying-cli seek failed: %s", result.stderr.strip())
+        except subprocess.TimeoutExpired:
+            _LOGGER.warning("nowplaying-cli seek timed out")
+
     def handle_volume_command(self, payload: str) -> None:
         payload = payload.strip()
         try:

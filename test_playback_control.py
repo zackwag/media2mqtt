@@ -60,3 +60,32 @@ class TestPlaybackController:
     def test_timeout_does_not_raise(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="nowplaying-cli", timeout=5)
         self.controller.handle_command("previous")
+
+    @patch("playback_control.subprocess.run")
+    def test_seek_runs_nowplaying_cli(self, mock_run):
+        mock_run.return_value = _result()
+        self.controller.handle_seek_command("120")
+        mock_run.assert_called_once_with(
+            ["/usr/local/bin/nowplaying-cli", "seek", "120"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+
+    @patch("playback_control.subprocess.run")
+    def test_seek_truncates_float(self, mock_run):
+        mock_run.return_value = _result()
+        self.controller.handle_seek_command("90.7")
+        assert mock_run.call_args.args[0] == ["/usr/local/bin/nowplaying-cli", "seek", "90"]
+
+    @patch("playback_control.subprocess.run")
+    def test_seek_clamps_negative_to_zero(self, mock_run):
+        mock_run.return_value = _result()
+        self.controller.handle_seek_command("-5")
+        assert mock_run.call_args.args[0] == ["/usr/local/bin/nowplaying-cli", "seek", "0"]
+
+    @patch("playback_control.subprocess.run")
+    def test_seek_ignores_garbage(self, mock_run):
+        self.controller.handle_seek_command("abc")
+        mock_run.assert_not_called()
