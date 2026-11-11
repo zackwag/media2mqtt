@@ -267,6 +267,7 @@ class MqttPublisher:
             "state_state_topic": f"{topic}/state",
             "state_title_topic": f"{topic}/title",
             "state_artist_topic": f"{topic}/artist",
+            "state_album_topic": f"{topic}/album",
             "state_duration_topic": f"{topic}/duration",
             "state_position_topic": f"{topic}/position",
             "state_albumart_topic": f"{topic}/albumart",
@@ -292,6 +293,7 @@ class MqttPublisher:
         player_state: str,
         title: str = "",
         artist: str = "",
+        album: str = "",
         media_type: str = "",
         duration: str | float | None = None,
         position: str | float | None = None,
@@ -306,6 +308,7 @@ class MqttPublisher:
         self._publish_state_topic(f"{topic}/state", player_state)
         self._publish_state_topic(f"{topic}/title", title)
         self._publish_state_topic(f"{topic}/artist", artist)
+        self._publish_state_topic(f"{topic}/album", album)
         self._publish_state_topic(f"{topic}/mediatype", media_type)
         self._publish_state_topic(f"{topic}/duration", _as_int_str(duration))
         position_str = _as_int_str(position)
