@@ -141,7 +141,10 @@ def main() -> None:
     controller = PlaybackController()
     command_topic = publisher.subscribe_commands(controller.handle_command)
     volume_topic = publisher.subscribe_volume(controller.handle_volume_command)
-    _LOGGER.info("Playback control listening on %s and %s", command_topic, volume_topic)
+    seek_topic = publisher.subscribe_seek(controller.handle_seek_command)
+    _LOGGER.info(
+        "Playback control listening on %s, %s, %s", command_topic, volume_topic, seek_topic
+    )
     media_player_id = publisher.publish_media_player_discovery()
 
     last_artwork_key: tuple[str, str] | None = None

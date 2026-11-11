@@ -93,6 +93,10 @@ class DeviceState:
         return self.config.get("command_volume_topic")
 
     @property
+    def seek_topic(self) -> str | None:
+        return self.config.get("command_seek_topic")
+
+    @property
     def display_name(self) -> str:
         """The Mac's DEVICE_NAME, from the discovery config's device block."""
         return self.config.get("device", {}).get("name") or self.device_id
@@ -129,6 +133,7 @@ class Coordinator:
         self._group_topic = f"{topic_prefix}/grouped"
         self._group_command_topic = f"{self._group_topic}/command"
         self._group_volume_topic = f"{self._group_topic}/volume_set"
+        self._group_seek_topic = f"{self._group_topic}/seek"
         self._group_config_topic = f"{discovery_prefix}/media_player/{self._group_object_id}/config"
         self._source_object_id = f"{_GROUP_ID}_source"
         self._source_state_topic = f"{topic_prefix}/grouped/source"
@@ -170,6 +175,7 @@ class Coordinator:
         client.subscribe(discovery_topic, qos=1)
         client.subscribe(self._group_command_topic, qos=1)
         client.subscribe(self._group_volume_topic, qos=1)
+        client.subscribe(self._group_seek_topic, qos=1)
         for device in self._devices.values():
             self._subscribe_device_topics(device)
 
@@ -186,7 +192,9 @@ class Coordinator:
         elif topic == self._group_command_topic:
             self._handle_command(payload)
         elif topic == self._group_volume_topic:
-            self._handle_volume_command(payload)
+            self._handle_seek_or_volume(payload, "volume_topic")
+        elif topic == self._group_seek_topic:
+            self._handle_seek_or_volume(payload, "seek_topic")
         else:
             self._handle_state_update(topic, payload)
 
@@ -269,14 +277,14 @@ class Coordinator:
                 topic, cmd_payload = cmds[command]
                 self.client.publish(topic, cmd_payload, qos=1)
 
-    def _handle_volume_command(self, payload: str):
+    def _handle_seek_or_volume(self, payload: str, topic_attr: str):
         with self._lock:
             if not self._active_device_id:
                 return
             device = self._devices.get(self._active_device_id)
             if not device:
                 return
-            topic = device.volume_topic
+            topic = getattr(device, topic_attr, None)
             if topic:
                 self.client.publish(topic, payload.strip(), qos=1)
 
@@ -384,6 +392,7 @@ class Coordinator:
             "command_previous_topic": self._group_command_topic,
             "command_previous_payload": "previous",
             "command_volume_topic": self._group_volume_topic,
+            "command_seek_topic": self._group_seek_topic,
         }
         self.client.publish(self._group_config_topic, json.dumps(payload), qos=1, retain=True)
 
