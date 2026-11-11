@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/zackwag/media2mqtt/compare/v3.0.0...v3.1.0) (2026-11-11)
+
+
+### Features
+
+* add seek support via nowplaying-cli ([#70](https://github.com/zackwag/media2mqtt/issues/70)) ([e97f0dd](https://github.com/zackwag/media2mqtt/commit/e97f0ddc964b54711a0e8fb21351d26b2209572a))
+
 ## [3.0.0](https://github.com/zackwag/media2mqtt/compare/v2.1.2...v3.0.0) (2026-11-10)
 
 
