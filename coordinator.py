@@ -42,6 +42,7 @@ _STATE_FIELDS = (
     "albumart",
     "mediatype",
     "volume",
+    "mute",
 )
 
 _APP_SENSORS: dict[str, tuple[str, str]] = {
@@ -78,6 +79,7 @@ class DeviceState:
         self.albumart: str = ""
         self.mediatype: str = ""
         self.volume: str = ""
+        self.mute: str = ""
 
     @property
     def command_topics(self) -> dict[str, tuple[str, str]]:
@@ -97,6 +99,10 @@ class DeviceState:
     @property
     def seek_topic(self) -> str | None:
         return self.config.get("command_seek_topic")
+
+    @property
+    def mute_topic(self) -> str | None:
+        return self.config.get("command_mute_topic")
 
     @property
     def display_name(self) -> str:
@@ -136,6 +142,7 @@ class Coordinator:
         self._group_command_topic = f"{self._group_topic}/command"
         self._group_volume_topic = f"{self._group_topic}/volume_set"
         self._group_seek_topic = f"{self._group_topic}/seek"
+        self._group_mute_topic = f"{self._group_topic}/mute_set"
         self._group_config_topic = f"{discovery_prefix}/media_player/{self._group_object_id}/config"
         self._source_object_id = f"{_GROUP_ID}_source"
         self._source_state_topic = f"{topic_prefix}/grouped/source"
@@ -178,6 +185,7 @@ class Coordinator:
         client.subscribe(self._group_command_topic, qos=1)
         client.subscribe(self._group_volume_topic, qos=1)
         client.subscribe(self._group_seek_topic, qos=1)
+        client.subscribe(self._group_mute_topic, qos=1)
         for device in self._devices.values():
             self._subscribe_device_topics(device)
 
@@ -197,6 +205,8 @@ class Coordinator:
             self._handle_seek_or_volume(payload, "volume_topic")
         elif topic == self._group_seek_topic:
             self._handle_seek_or_volume(payload, "seek_topic")
+        elif topic == self._group_mute_topic:
+            self._handle_seek_or_volume(payload, "mute_topic")
         else:
             self._handle_state_update(topic, payload)
 
@@ -347,6 +357,7 @@ class Coordinator:
                 force=position_from == active and dev.state == "playing",
             )
             self._publish_state_topic(f"{t}/vol", dev.volume)
+            self._publish_state_topic(f"{t}/mute", dev.mute)
             self._publish_state_topic(f"{t}/albumart", dev.albumart)
             if active != prev_active:
                 self._publish_state_topic(self._source_state_topic, dev.display_name)
@@ -362,6 +373,7 @@ class Coordinator:
             self._publish_state_topic(f"{t}/duration", "")
             self._publish_state_topic(f"{t}/position", "")
             self._publish_state_topic(f"{t}/vol", "")
+            self._publish_state_topic(f"{t}/mute", "")
             for state_topic in self._app_sensor_topics.values():
                 self._publish_state_topic(state_topic, "idle")
             if prev_active is not None:
@@ -388,6 +400,7 @@ class Coordinator:
             "state_albumart_topic": f"{t}/albumart",
             "state_mediatype_topic": f"{t}/mediatype",
             "state_volume_topic": f"{t}/vol",
+            "state_mute_topic": f"{t}/mute",
             "command_play_topic": self._group_command_topic,
             "command_play_payload": "play",
             "command_pause_topic": self._group_command_topic,
@@ -398,6 +411,7 @@ class Coordinator:
             "command_previous_payload": "previous",
             "command_volume_topic": self._group_volume_topic,
             "command_seek_topic": self._group_seek_topic,
+            "command_mute_topic": self._group_mute_topic,
         }
         self.client.publish(self._group_config_topic, json.dumps(payload), qos=1, retain=True)
 

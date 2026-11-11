@@ -97,6 +97,8 @@ class TestIdentityKeyedOnDeviceId:
         assert payload["command_play_topic"] == f"media2mqtt/{DEVICE_ID}/command"
         assert payload["command_volume_topic"] == f"media2mqtt/{DEVICE_ID}/volume"
         assert payload["command_seek_topic"] == f"media2mqtt/{DEVICE_ID}/seek"
+        assert payload["command_mute_topic"] == f"media2mqtt/{DEVICE_ID}/mute"
+        assert payload["state_mute_topic"] == f"media2mqtt/{DEVICE_ID}_media_player/mute"
 
     def test_command_topics(self):
         assert (
@@ -104,6 +106,7 @@ class TestIdentityKeyedOnDeviceId:
         )
         assert self.publisher.subscribe_volume(lambda _: None) == f"media2mqtt/{DEVICE_ID}/volume"
         assert self.publisher.subscribe_seek(lambda _: None) == f"media2mqtt/{DEVICE_ID}/seek"
+        assert self.publisher.subscribe_mute(lambda _: None) == f"media2mqtt/{DEVICE_ID}/mute"
 
     def test_nothing_is_derived_from_device_name(self):
         self.publisher.publish_discovery("music", "Music")

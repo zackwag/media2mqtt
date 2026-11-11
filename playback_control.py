@@ -64,6 +64,28 @@ class PlaybackController:
         except subprocess.TimeoutExpired:
             _LOGGER.warning("nowplaying-cli seek timed out")
 
+    def handle_mute_command(self, payload: str) -> None:
+        payload = payload.strip().lower()
+        if payload == "mute":
+            script = "set volume with output muted"
+        elif payload == "unmute":
+            script = "set volume without output muted"
+        else:
+            _LOGGER.warning("Ignoring invalid mute payload: %r", payload)
+            return
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode != 0:
+                _LOGGER.warning("set mute failed: %s", result.stderr.strip())
+        except subprocess.TimeoutExpired:
+            _LOGGER.warning("set mute timed out")
+
     def handle_volume_command(self, payload: str) -> None:
         payload = payload.strip()
         try:
@@ -85,6 +107,23 @@ class PlaybackController:
                 _LOGGER.warning("set volume failed: %s", result.stderr.strip())
         except subprocess.TimeoutExpired:
             _LOGGER.warning("set volume timed out")
+
+
+def get_muted() -> bool:
+    """Return whether macOS output audio is muted."""
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", "output muted of (get volume settings)"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip().lower() == "true"
+    except subprocess.TimeoutExpired:
+        pass
+    return False
 
 
 def get_volume() -> float:

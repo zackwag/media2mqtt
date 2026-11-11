@@ -89,3 +89,32 @@ class TestPlaybackController:
     def test_seek_ignores_garbage(self, mock_run):
         self.controller.handle_seek_command("abc")
         mock_run.assert_not_called()
+
+    @patch("playback_control.subprocess.run")
+    def test_mute_sends_osascript(self, mock_run):
+        mock_run.return_value = _result()
+        self.controller.handle_mute_command("mute")
+        mock_run.assert_called_once_with(
+            ["osascript", "-e", "set volume with output muted"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+
+    @patch("playback_control.subprocess.run")
+    def test_unmute_sends_osascript(self, mock_run):
+        mock_run.return_value = _result()
+        self.controller.handle_mute_command("unmute")
+        mock_run.assert_called_once_with(
+            ["osascript", "-e", "set volume without output muted"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+
+    @patch("playback_control.subprocess.run")
+    def test_mute_ignores_garbage(self, mock_run):
+        self.controller.handle_mute_command("toggle")
+        mock_run.assert_not_called()
