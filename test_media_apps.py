@@ -102,6 +102,12 @@ class TestMusicApp:
         assert state.attributes["track"] == "Don't Stop Me Now"
 
 
+def _pgrep_result(running: bool):
+    return subprocess.CompletedProcess(
+        args=[], returncode=0 if running else 1, stdout=b"", stderr=b""
+    )
+
+
 def _nowplaying_json(bundle_id, title, artist, duration, playback_rate, elapsed=0):
     return json.dumps(
         {
@@ -122,14 +128,14 @@ class TestPodcastsApp:
 
     @patch("media_apps.subprocess.run")
     def test_app_not_running(self, mock_run):
-        mock_run.return_value = _osascript_result("false")
+        mock_run.return_value = _pgrep_result(False)
         state = self.app.poll()
         assert state == MediaState()
 
     @patch("media_apps.subprocess.run")
     def test_playing(self, mock_run):
         mock_run.side_effect = [
-            _osascript_result("true"),
+            _pgrep_result(True),
             _osascript_result(
                 _nowplaying_json("com.apple.podcasts", "Episode 42", "My Podcast", 3600, 1, 1200)
             ),
@@ -145,7 +151,7 @@ class TestPodcastsApp:
     @patch("media_apps.subprocess.run")
     def test_paused(self, mock_run):
         mock_run.side_effect = [
-            _osascript_result("true"),
+            _pgrep_result(True),
             _osascript_result(
                 _nowplaying_json("com.apple.podcasts", "Episode 1", "Some Show", 1800, 0, 500)
             ),
@@ -157,7 +163,7 @@ class TestPodcastsApp:
     @patch("media_apps.subprocess.run")
     def test_different_app_playing(self, mock_run):
         mock_run.side_effect = [
-            _osascript_result("true"),
+            _pgrep_result(True),
             _osascript_result(_nowplaying_json("com.apple.Music", "Song", "Artist", 200, 1, 50)),
         ]
         state = self.app.poll()
@@ -166,7 +172,7 @@ class TestPodcastsApp:
     @patch("media_apps.subprocess.run")
     def test_nowplaying_error(self, mock_run):
         mock_run.side_effect = [
-            _osascript_result("true"),
+            _pgrep_result(True),
             _osascript_error(),
         ]
         state = self.app.poll()
@@ -175,7 +181,7 @@ class TestPodcastsApp:
     @patch("media_apps.subprocess.run")
     def test_nowplaying_timeout(self, mock_run):
         mock_run.side_effect = [
-            _osascript_result("true"),
+            _pgrep_result(True),
             subprocess.TimeoutExpired(cmd="nowplaying-cli", timeout=5),
         ]
         state = self.app.poll()
@@ -186,7 +192,7 @@ class TestPodcastsApp:
     def test_elapsed_advances_between_polls(self, mock_monotonic, mock_run):
         mock_monotonic.return_value = 100.0
         mock_run.side_effect = [
-            _osascript_result("true"),
+            _pgrep_result(True),
             _osascript_result(_nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 1, 500)),
         ]
         state = self.app.poll()
@@ -194,7 +200,7 @@ class TestPodcastsApp:
 
         mock_monotonic.return_value = 105.0
         mock_run.side_effect = [
-            _osascript_result("true"),
+            _pgrep_result(True),
             _osascript_result(_nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 1, 500)),
         ]
         state = self.app.poll()
@@ -205,7 +211,7 @@ class TestPodcastsApp:
     def test_elapsed_does_not_exceed_duration(self, mock_monotonic, mock_run):
         mock_monotonic.return_value = 100.0
         mock_run.side_effect = [
-            _osascript_result("true"),
+            _pgrep_result(True),
             _osascript_result(
                 _nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 1, 3599)
             ),
@@ -214,7 +220,7 @@ class TestPodcastsApp:
 
         mock_monotonic.return_value = 200.0
         mock_run.side_effect = [
-            _osascript_result("true"),
+            _pgrep_result(True),
             _osascript_result(
                 _nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 1, 3599)
             ),
@@ -227,14 +233,14 @@ class TestPodcastsApp:
     def test_elapsed_frozen_when_paused(self, mock_monotonic, mock_run):
         mock_monotonic.return_value = 100.0
         mock_run.side_effect = [
-            _osascript_result("true"),
+            _pgrep_result(True),
             _osascript_result(_nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 0, 500)),
         ]
         state = self.app.poll()
 
         mock_monotonic.return_value = 110.0
         mock_run.side_effect = [
-            _osascript_result("true"),
+            _pgrep_result(True),
             _osascript_result(_nowplaying_json("com.apple.podcasts", "Ep 1", "Show", 3600, 0, 500)),
         ]
         state = self.app.poll()
