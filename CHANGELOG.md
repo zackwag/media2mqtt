@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.3.0](https://github.com/zackwag/media2mqtt/compare/v3.2.0...v3.3.0) (2026-11-11)
+
+
+### Features
+
+* add mute support ([#77](https://github.com/zackwag/media2mqtt/issues/77)) ([04d3460](https://github.com/zackwag/media2mqtt/commit/04d346017b9dbf35582bf6941f2f60a87c506c12))
+
+
+### Code Refactoring
+
+* use pgrep for PodcastsApp process check ([#78](https://github.com/zackwag/media2mqtt/issues/78)) ([9554285](https://github.com/zackwag/media2mqtt/commit/95542857c4ecb755550f18afc305bb7931c131b9))
+
 ## [3.2.0](https://github.com/zackwag/media2mqtt/compare/v3.1.1...v3.2.0) (2026-11-11)
 
 
