@@ -49,7 +49,7 @@ import time
 
 from media_apps import AVAILABLE_APPS, MediaState, find_nowplaying_cli, get_artwork_b64
 from mqtt_publisher import MqttPublisher, get_device_id
-from playback_control import PlaybackController, get_volume
+from playback_control import PlaybackController, get_muted, get_volume
 from scrobbler import DEFAULT_API_KEY, DEFAULT_API_SECRET, LastfmScrobbler, ScrobbleTracker
 
 _TITLE_KEYS = {"music": "track", "podcasts": "episode"}
@@ -142,8 +142,13 @@ def main() -> None:
     command_topic = publisher.subscribe_commands(controller.handle_command)
     volume_topic = publisher.subscribe_volume(controller.handle_volume_command)
     seek_topic = publisher.subscribe_seek(controller.handle_seek_command)
+    mute_topic = publisher.subscribe_mute(controller.handle_mute_command)
     _LOGGER.info(
-        "Playback control listening on %s, %s, %s", command_topic, volume_topic, seek_topic
+        "Playback control listening on %s, %s, %s, %s",
+        command_topic,
+        volume_topic,
+        seek_topic,
+        mute_topic,
     )
     media_player_id = publisher.publish_media_player_discovery()
 
@@ -185,6 +190,7 @@ def main() -> None:
         if active:
             last_active_key = active[0]
         volume = get_volume()
+        muted = get_muted()
         if active:
             key, source, state = active
             title = state.attributes.get(_TITLE_KEYS.get(key, "track"), "")
@@ -224,6 +230,7 @@ def main() -> None:
                 position=state.attributes.get("elapsed"),
                 albumart_b64=albumart_b64,
                 volume=volume,
+                muted=muted,
             )
         else:
             publisher.publish_state(now_playing_id, "idle", False, {})
@@ -237,6 +244,7 @@ def main() -> None:
                 player_state="idle",
                 albumart_b64=albumart_b64,
                 volume=volume,
+                muted=muted,
             )
 
         time.sleep(poll_interval)

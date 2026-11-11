@@ -98,6 +98,8 @@ class MqttPublisher:
         self._volume_handler: Callable[[str], None] | None = None
         self._seek_topic: str | None = None
         self._seek_handler: Callable[[str], None] | None = None
+        self._mute_topic: str | None = None
+        self._mute_handler: Callable[[str], None] | None = None
         # Last payload published per retained state topic. The poll loop calls the
         # publish_* methods every second whether or not anything changed, and every
         # message reaching Home Assistant is a state write (the MQTT Media Player
@@ -134,6 +136,8 @@ class MqttPublisher:
                 self.client.subscribe(self._volume_topic, qos=1)
             if self._seek_topic:
                 self.client.subscribe(self._seek_topic, qos=1)
+            if self._mute_topic:
+                self.client.subscribe(self._mute_topic, qos=1)
         else:
             _LOGGER.warning("MQTT connection refused: %s", reason_code)
 
@@ -145,13 +149,20 @@ class MqttPublisher:
         if msg.topic == self._seek_topic and self._seek_handler:
             self._command_queue.put(("seek", payload))
             return
+        if msg.topic == self._mute_topic and self._mute_handler:
+            self._command_queue.put(("mute", payload))
+            return
         if msg.topic == self._command_topic and self._command_queue is not None:
             self._command_queue.put(("command", payload))
 
     def _process_commands(self):
         while True:
             kind, payload = self._command_queue.get()
-            handlers = {"volume": self._volume_handler, "seek": self._seek_handler}
+            handlers = {
+                "volume": self._volume_handler,
+                "seek": self._seek_handler,
+                "mute": self._mute_handler,
+            }
             handler = handlers.get(kind, self._command_handler)
             if handler is None:
                 continue
@@ -233,6 +244,9 @@ class MqttPublisher:
     def seek_command_topic(self) -> str:
         return f"{self.topic_prefix}/{self.device_id}/seek"
 
+    def mute_command_topic(self) -> str:
+        return f"{self.topic_prefix}/{self.device_id}/mute"
+
     def publish_media_player_discovery(self) -> str:
         """Publish discovery for the "MQTT Media Player" HACS integration.
 
@@ -261,6 +275,7 @@ class MqttPublisher:
         command_topic = self.command_topic()
         vol_command_topic = self.volume_command_topic()
         seek_command_topic = self.seek_command_topic()
+        mute_command_topic = self.mute_command_topic()
         config_topic = f"{self.discovery_prefix}/media_player/{object_id}/config"
         payload = {
             "device": self._device_block(),
@@ -273,6 +288,7 @@ class MqttPublisher:
             "state_albumart_topic": f"{topic}/albumart",
             "state_mediatype_topic": f"{topic}/mediatype",
             "state_volume_topic": f"{topic}/vol",
+            "state_mute_topic": f"{topic}/mute",
             "command_play_topic": command_topic,
             "command_play_payload": "play",
             "command_pause_topic": command_topic,
@@ -283,6 +299,7 @@ class MqttPublisher:
             "command_previous_payload": "previous",
             "command_volume_topic": vol_command_topic,
             "command_seek_topic": seek_command_topic,
+            "command_mute_topic": mute_command_topic,
         }
         self.client.publish(config_topic, json.dumps(payload), qos=1, retain=True)
         return object_id
@@ -299,6 +316,7 @@ class MqttPublisher:
         position: str | float | None = None,
         albumart_b64: str | None = None,
         volume: float | None = None,
+        muted: bool | None = None,
     ) -> None:
         topic = f"{self.topic_prefix}/{object_id}"
         playback_changed = any(
@@ -325,6 +343,8 @@ class MqttPublisher:
             self._publish_state_topic(f"{topic}/albumart", albumart_b64)
         if volume is not None:
             self._publish_state_topic(f"{topic}/vol", str(round(volume, 2)))
+        if muted is not None:
+            self._publish_state_topic(f"{topic}/mute", "mute" if muted else "unmute")
 
     def _should_publish_position(
         self, object_id: str, position: int, playback_changed: bool
@@ -371,6 +391,18 @@ class MqttPublisher:
         topic = self.seek_command_topic()
         self._seek_topic = topic
         self._seek_handler = handler
+        if self._command_queue is None:
+            self._command_queue = queue.Queue()
+            threading.Thread(target=self._process_commands, daemon=True).start()
+        if self._connected:
+            self.client.subscribe(topic, qos=1)
+        return topic
+
+    def subscribe_mute(self, handler: Callable[[str], None]) -> str:
+        """Subscribe to the device's mute command topic."""
+        topic = self.mute_command_topic()
+        self._mute_topic = topic
+        self._mute_handler = handler
         if self._command_queue is None:
             self._command_queue = queue.Queue()
             threading.Thread(target=self._process_commands, daemon=True).start()
