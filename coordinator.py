@@ -36,6 +36,7 @@ _STATE_FIELDS = (
     "state",
     "title",
     "artist",
+    "album",
     "duration",
     "position",
     "albumart",
@@ -71,6 +72,7 @@ class DeviceState:
         self.state: str = "idle"
         self.title: str = ""
         self.artist: str = ""
+        self.album: str = ""
         self.duration: str = ""
         self.position: str = ""
         self.albumart: str = ""
@@ -336,6 +338,7 @@ class Coordinator:
             self._publish_state_topic(f"{t}/state", dev.state)
             self._publish_state_topic(f"{t}/title", dev.title)
             self._publish_state_topic(f"{t}/artist", dev.artist)
+            self._publish_state_topic(f"{t}/album", dev.album)
             self._publish_state_topic(f"{t}/mediatype", dev.mediatype)
             self._publish_state_topic(f"{t}/duration", dev.duration)
             self._publish_state_topic(
@@ -354,6 +357,7 @@ class Coordinator:
             self._publish_state_topic(f"{t}/state", "idle")
             self._publish_state_topic(f"{t}/title", "")
             self._publish_state_topic(f"{t}/artist", "")
+            self._publish_state_topic(f"{t}/album", "")
             self._publish_state_topic(f"{t}/mediatype", "")
             self._publish_state_topic(f"{t}/duration", "")
             self._publish_state_topic(f"{t}/position", "")
@@ -378,6 +382,7 @@ class Coordinator:
             "state_state_topic": f"{t}/state",
             "state_title_topic": f"{t}/title",
             "state_artist_topic": f"{t}/artist",
+            "state_album_topic": f"{t}/album",
             "state_duration_topic": f"{t}/duration",
             "state_position_topic": f"{t}/position",
             "state_albumart_topic": f"{t}/albumart",

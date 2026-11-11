@@ -218,6 +218,7 @@ def main() -> None:
                 player_state=state.player_state,
                 title=title,
                 artist=subtitle,
+                album=state.attributes.get("album", ""),
                 media_type=_MEDIA_TYPES.get(key, "music"),
                 duration=state.attributes.get("duration"),
                 position=state.attributes.get("elapsed"),
