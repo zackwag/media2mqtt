@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.1.1](https://github.com/zackwag/media2mqtt/compare/v3.1.0...v3.1.1) (2026-11-11)
+
+
+### Miscellaneous Chores
+
+* **deps:** update paho-mqtt requirement ([b3e2551](https://github.com/zackwag/media2mqtt/commit/b3e25519903fbc04c2a48fb177f61794d37b649f))
+* **deps:** update paho-mqtt requirement from &lt;3.0,&gt;=2.1.0 to &gt;=2.2.0,&lt;3.0 ([#74](https://github.com/zackwag/media2mqtt/issues/74)) ([b3e2551](https://github.com/zackwag/media2mqtt/commit/b3e25519903fbc04c2a48fb177f61794d37b649f))
+* fix dependabot commit-message prefixes for conventional commits ([#72](https://github.com/zackwag/media2mqtt/issues/72)) ([3a191ff](https://github.com/zackwag/media2mqtt/commit/3a191ffba2ef22ce066eae908fadd27047706b0a))
+
 ## [3.1.0](https://github.com/zackwag/media2mqtt/compare/v3.0.0...v3.1.0) (2026-11-11)
 
 
