@@ -125,9 +125,19 @@ class PodcastsApp(MediaApp):
             raise RuntimeError(
                 "nowplaying-cli is required for Podcasts support: brew install nowplaying-cli"
             )
+        self._process_name = self.app_name
         self._elapsed_snapshot: float | None = None
         self._snapshot_time: float | None = None
         self._snapshot_rate: float = 0
+
+    def _app_is_running(self) -> bool:
+        result = subprocess.run(
+            ["pgrep", "-x", self._process_name],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        return result.returncode == 0
 
     def poll(self) -> MediaState:
         if not self._app_is_running():
